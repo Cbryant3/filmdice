@@ -1,0 +1,18 @@
+We want the user to be able to: 	
+
+Get a random movie
+
+Filter by Genre
+
+Allow the User to address if they watched already, enter a no - que list.
+
+No que list - Rerolls film if on list
+
+Filter by Year
+
+Filter by length
+
+Filter by Rating
+
+Display Poster
+
