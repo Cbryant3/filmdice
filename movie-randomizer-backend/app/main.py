@@ -1,8 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from app import db
 from app.tmdb_client import get_movie, poster_url
 from app.config import settings
 import random
 from app.schemas import RandomMovieRequest, RandomMovieResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+from app.db import Base, engine, get_db
+from app.models import UserMovieInteraction
+from app.schemas import InteractionUpsert, RandomMovieRequest, RandomMovieResponse
 from app.tmdb_client import (
     discover_movies, get_movie, poster_url, get_movie_videos, get_watch_providers, get_release_dates, get_release_dates
 )
@@ -45,6 +52,12 @@ def extract_providers(providers_json: dict, region: str) -> dict:
 def root():
     return {"message": "API is running. Go to /docs"}
 
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 @app.get("/debug-key")
 def debug_key():
     return {"has_key": bool(settings.tmdb_api_key), "len": len(settings.tmdb_api_key)}
@@ -66,13 +79,14 @@ async def tmdb_test():
     }
 
 @app.post("/random-movie", response_model=RandomMovieResponse)
-async def random_movie(req: RandomMovieRequest):
+async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_db)):
+
     # 1) Build discover params from filters
     f = req.filters
     discover_params = {
         "include_adult": "false",
         "include_video": "false",
-        "sort_by": "popularity.desc",
+        "sort_by": f.sort_by or "popularity.desc",
         "page": 1,
     }
 
@@ -91,20 +105,20 @@ async def random_movie(req: RandomMovieRequest):
     if f.language:
         discover_params["with_original_language"] = f.language
 
-    # decade shortcut (only if year_min/year_max not set)
+    # Exclude genres
+    if f.exclude_genre_ids:
+        discover_params["without_genres"] = ",".join(map(str, f.exclude_genre_ids))
+
+    # Decade shortcut (only if year_min/year_max not set)
     if f.decade and not f.year_min and not f.year_max:
         discover_params["primary_release_date.gte"] = f"{f.decade}-01-01"
         discover_params["primary_release_date.lte"] = f"{f.decade + 9}-12-31"
 
-    # runtime filter
+    # Runtime filter
     if f.runtime_min is not None:
         discover_params["with_runtime.gte"] = str(f.runtime_min)
     if f.runtime_max is not None:
         discover_params["with_runtime.lte"] = str(f.runtime_max)
-
-    # exclude genres
-    if f.exclude_genre_ids:
-        discover_params["without_genres"] = ",".join(map(str, f.exclude_genre_ids))
 
     # 2) First discover call to learn total_pages
     first = await discover_movies(discover_params)
@@ -112,8 +126,13 @@ async def random_movie(req: RandomMovieRequest):
     if total_pages <= 0:
         raise HTTPException(status_code=404, detail="No movies found for those filters.")
 
-    # TMDb commonly caps discover at 500 pages
+    # TMDb caps discover at 500 pages
     total_pages = min(total_pages, 500)
+
+    # Precompute these once
+    suppress_since = datetime.now(timezone.utc) - timedelta(days=req.suppress_days)
+    region = f.region or "US"
+    rating_region = f.content_rating_region or region
 
     # 3) Try up to reroll_max to get a valid pick
     for _ in range(req.reroll_max):
@@ -129,24 +148,38 @@ async def random_movie(req: RandomMovieRequest):
         movie_id = pick.get("id")
         if not movie_id:
             continue
-        # Get trailer URL
+
+        # --- DB check FIRST: skip/watched/recent suppression ---
+        q = select(UserMovieInteraction).where(
+            UserMovieInteraction.user_id == req.user_id,
+            UserMovieInteraction.tmdb_movie_id == int(movie_id),
+        )
+        row = (await db.execute(q)).scalar_one_or_none()
+
+        if row:
+            if row.skip:
+                continue
+            if row.status == "watched":
+                continue
+            if row.last_surfaced_at and row.last_surfaced_at >= suppress_since:
+                continue
+
+        # --- TMDb calls AFTER passing DB checks ---
+        details = await get_movie(int(movie_id))
+
+        # Trailer
         videos_json = await get_movie_videos(int(movie_id))
         trailer_url = extract_trailer_url(videos_json)
 
-        # Get watch providers
-        region = f.region or "US"
+        # Where to watch
         providers_json = await get_watch_providers(int(movie_id))
         where_to_watch = extract_providers(providers_json, region)
 
-        # If user wants ONLY streamable movies
-        if f.must_be_streaming:
-            if not where_to_watch["flatrate"]:
-                continue  # reroll
+        if f.must_be_streaming and not where_to_watch["flatrate"]:
+            continue  # reroll
 
-        rating_region = f.content_rating_region or region
+        # Content rating include/exclude
         cert = None
-
-        # Only call release_dates if user asked for rating filtering OR you want to display it
         if f.content_rating_include or f.content_rating_exclude:
             release_dates_json = await get_release_dates(int(movie_id))
             cert = extract_certification(release_dates_json, rating_region)
@@ -156,8 +189,21 @@ async def random_movie(req: RandomMovieRequest):
             if f.content_rating_exclude and cert in f.content_rating_exclude:
                 continue
 
-        # 4) Fetch details for full overview/poster (discover has some but details is consistent)
-        details = await get_movie(int(movie_id))
+        # --- Mark as surfaced (required for suppression to work) ---
+        now = datetime.now(timezone.utc)
+        if row:
+            row.last_surfaced_at = now
+        else:
+            db.add(UserMovieInteraction(
+                user_id=req.user_id,
+                tmdb_movie_id=int(movie_id),
+                status="unseen",
+                skip=False,
+                last_surfaced_at=now,
+            ))
+        await db.commit()
+
+        # Return final response
         return RandomMovieResponse(
             id=int(details["id"]),
             title=details.get("title") or "Unknown title",
@@ -167,5 +213,34 @@ async def random_movie(req: RandomMovieRequest):
             trailer_url=trailer_url,
             where_to_watch=where_to_watch,
             content_rating=cert,
-)
+        )
+
     raise HTTPException(status_code=404, detail="Could not find a movie after rerolls.")
+
+@app.post("/interactions")
+async def upsert_interaction(payload: InteractionUpsert, db: AsyncSession = Depends(get_db)):
+    q = select(UserMovieInteraction).where(
+        UserMovieInteraction.user_id == payload.user_id,
+        UserMovieInteraction.tmdb_movie_id == payload.tmdb_movie_id,
+    )
+    row = (await db.execute(q)).scalar_one_or_none()
+
+    if row is None:
+        row = UserMovieInteraction(
+            user_id=payload.user_id,
+            tmdb_movie_id=payload.tmdb_movie_id,
+            status="unseen",
+            skip=False,
+        )
+        db.add(row)
+
+    if payload.status is not None:
+        if payload.status not in {"unseen", "watched", "dropped"}:
+            raise HTTPException(400, 'status must be "unseen", "watched", or "dropped"')
+        row.status = payload.status
+
+    if payload.skip is not None:
+        row.skip = payload.skip
+
+    await db.commit()
+    return {"ok": True}

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 
 class Filters(BaseModel):
     # existing
@@ -29,9 +29,19 @@ class Filters(BaseModel):
     content_rating_exclude: Optional[List[str]] = None
     content_rating_region: Optional[str] = None  # defaults to region
 
+    exclude_genre_ids: Optional[List[int]] = None
+
+    sort_by: Optional[Literal[
+        "popularity.desc",
+        "vote_average.desc",
+        "primary_release_date.desc"
+    ]] = "popularity.desc"
+
 class RandomMovieRequest(BaseModel):
+    user_id: str
     filters: Filters = Filters()
     reroll_max: int = Field(10, ge=1, le=50)
+    suppress_days: int = Field(30, ge=0, le=365)
 
 class RandomMovieResponse(BaseModel):
     id: int
@@ -48,3 +58,9 @@ class RandomMovieResponse(BaseModel):
 
     # NEW: content rating resolved
     content_rating: str | None = None
+
+class InteractionUpsert(BaseModel):
+    user_id: str
+    tmdb_movie_id: int
+    status: Optional[str] = None  # unseen | watched | dropped
+    skip: Optional[bool] = None
