@@ -278,29 +278,27 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
             if row.last_surfaced_at and row.last_surfaced_at >= suppress_since:
                 continue
 
-        # Fetch details, trailer, providers concurrently
-        details, videos_json, providers_json = await asyncio.gather(
+        # Fetch details, trailer, providers, and cert concurrently
+        details, videos_json, providers_json, release_dates_json = await asyncio.gather(
             get_movie(int(movie_id)),
             get_movie_videos(int(movie_id)),
             get_watch_providers(int(movie_id)),
+            get_release_dates(int(movie_id)),
         )
 
         trailer_url = extract_trailer_url(videos_json)
         where_to_watch = extract_providers(providers_json, region)
+        cert = extract_certification(release_dates_json, rating_region)
 
         # Safety net: confirm streaming even though TMDB pre-filtered
         if f.must_be_streaming and not where_to_watch["flatrate"]:
             continue
 
-        # Content rating check
-        cert = None
-        if f.content_rating_include or f.content_rating_exclude:
-            release_dates_json = await get_release_dates(int(movie_id))
-            cert = extract_certification(release_dates_json, rating_region)
-            if f.content_rating_include and cert not in f.content_rating_include:
-                continue
-            if f.content_rating_exclude and cert in f.content_rating_exclude:
-                continue
+        # Content rating filter
+        if f.content_rating_include and cert not in f.content_rating_include:
+            continue
+        if f.content_rating_exclude and cert in f.content_rating_exclude:
+            continue
 
         # Extract preference data from discover result (no extra API call needed)
         raw_genre_ids: list[int] = pick.get("genre_ids") or []

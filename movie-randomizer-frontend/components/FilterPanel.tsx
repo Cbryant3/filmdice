@@ -85,6 +85,10 @@ export default function FilterPanel({ open, onClose, filters, onChange }: Props)
     fetchGenres().then(setGenres).catch(console.error)
   }, [])
 
+  const selectedDecades = filters.decades ?? []
+  const decadeMin = selectedDecades.length ? Math.min(...selectedDecades) : null
+  const decadeMax = selectedDecades.length ? Math.max(...selectedDecades) : null
+
   function set<K extends keyof Filters>(key: K, value: Filters[K]) {
     onChange({ ...filters, [key]: value })
   }
@@ -92,7 +96,8 @@ export default function FilterPanel({ open, onClose, filters, onChange }: Props)
   function toggleGenre(id: number) {
     const current = filters.genre_ids ?? []
     if (current.includes(id)) {
-      set("genre_ids", current.filter(g => g !== id))
+      const next = current.filter(g => g !== id)
+      set("genre_ids", next.length ? next : undefined)
     } else {
       set("genre_ids", [...current, id])
     }
@@ -193,31 +198,41 @@ export default function FilterPanel({ open, onClose, filters, onChange }: Props)
               <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">
                 Decade
               </label>
-              {(filters.decades ?? []).length > 0 && (
+              {decadeMin !== null && (
                 <span className="text-indigo-400 text-xs">
-                  {(() => {
-                    const selected = filters.decades!
-                    const start = Math.min(...selected)
-                    const end   = Math.max(...selected) + 9
-                    return selected.length === 1
-                      ? `${start}s`
-                      : `${start}–${end}`
-                  })()}
+                  {decadeMin === decadeMax ? `${decadeMin}s` : `${decadeMin}–${decadeMax! + 9}`}
                 </span>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
               {DECADES.map(d => {
-                const active = (filters.decades ?? []).includes(d)
+                const active = decadeMin !== null && d >= decadeMin && d <= decadeMax!
                 return (
                   <button
                     key={d}
                     onClick={() => {
-                      const current = filters.decades ?? []
-                      const next = active
-                        ? current.filter(x => x !== d)
-                        : [...current, d]
-                      set("decades", next.length ? next : undefined)
+                      if (decadeMin === null) {
+                        set("decades", [d])
+                        return
+                      }
+                      if (active) {
+                        if (decadeMin === decadeMax) {
+                          set("decades", undefined)
+                        } else if (d === decadeMin) {
+                          const idx = DECADES.indexOf(d)
+                          set("decades", DECADES.filter(dec => dec >= DECADES[idx + 1] && dec <= decadeMax!))
+                        } else if (d === decadeMax) {
+                          const idx = DECADES.indexOf(d)
+                          const next = DECADES.filter(dec => dec >= decadeMin! && dec <= DECADES[idx - 1])
+                          set("decades", next.length ? next : undefined)
+                        } else {
+                          set("decades", [d])
+                        }
+                      } else {
+                        const newMin = Math.min(decadeMin, d)
+                        const newMax = Math.max(decadeMax!, d)
+                        set("decades", DECADES.filter(dec => dec >= newMin && dec <= newMax))
+                      }
                     }}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       active
@@ -230,6 +245,9 @@ export default function FilterPanel({ open, onClose, filters, onChange }: Props)
                 )
               })}
             </div>
+            {decadeMin !== null && decadeMin !== decadeMax && (
+              <p className="text-zinc-600 text-xs mt-1.5">All decades in range are included.</p>
+            )}
           </section>
 
           {/* Rating range */}
