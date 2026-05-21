@@ -2,7 +2,8 @@
 # Sets up and launches the backend (FastAPI) and frontend (Next.js) in separate windows.
 
 param(
-    [switch]$SkipBrowser   # Pass -SkipBrowser to suppress auto-opening localhost:3000
+    [switch]$SkipBrowser,  # Pass -SkipBrowser to suppress auto-opening localhost:3000
+    [switch]$Network       # Pass -Network to expose on local WiFi (for phone access)
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,9 +134,28 @@ if (-not (Test-Path $nodeModules)) {
 
 
 # ---------------------------------------------------------------------------
-# 6. Launch backend in a new window
+# 6. Detect local IP if -Network was passed
+# ---------------------------------------------------------------------------
+$localIP = $null
+if ($Network) {
+    $localIP = (Get-NetIPAddress -AddressFamily IPv4 |
+        Where-Object { $_.IPAddress -notmatch "^127\." -and $_.PrefixOrigin -eq "Dhcp" } |
+        Select-Object -First 1).IPAddress
+    if (-not $localIP) {
+        Write-Warn "Could not detect a DHCP WiFi IP - falling back to localhost mode"
+        $Network = $false
+    } else {
+        Write-OK "Local network IP: $localIP"
+    }
+}
+
+
+# ---------------------------------------------------------------------------
+# 7. Launch backend in a new window
 # ---------------------------------------------------------------------------
 Write-Step "Launching services..."
+
+$uvicornArgs = if ($Network) { "--host 0.0.0.0 --reload" } else { "--reload" }
 
 $backendScript = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.ps1'
 @"
@@ -145,16 +165,31 @@ Write-Host "  FilmDice Backend" -ForegroundColor Cyan
 Write-Host "  API docs: http://localhost:8000/docs" -ForegroundColor Yellow
 Write-Host ""
 Set-Location "$backend"
-& "$python" -m uvicorn app.main:app --reload
+& "$python" -m uvicorn app.main:app $uvicornArgs
 "@ | Out-File $backendScript -Encoding utf8
 
 Start-Process powershell -ArgumentList "-NoExit", "-File", $backendScript
 
 
 # ---------------------------------------------------------------------------
-# 7. Launch frontend in a new window
+# 8. Launch frontend in a new window
 # ---------------------------------------------------------------------------
+$nextHost = if ($Network) { "-H 0.0.0.0" } else { "" }
+
 $frontendScript = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.ps1'
+if ($Network) {
+@"
+`$Host.UI.RawUI.WindowTitle = "FilmDice Frontend"
+`$env:NEXT_PUBLIC_API_URL = "http://${localIP}:8000"
+Write-Host ""
+Write-Host "  FilmDice Frontend" -ForegroundColor Cyan
+Write-Host "  Local:   http://localhost:3000" -ForegroundColor Yellow
+Write-Host "  Network: http://${localIP}:3000" -ForegroundColor Green
+Write-Host ""
+Set-Location "$frontend"
+npm run dev -- -H 0.0.0.0
+"@ | Out-File $frontendScript -Encoding utf8
+} else {
 @"
 `$Host.UI.RawUI.WindowTitle = "FilmDice Frontend"
 Write-Host ""
@@ -164,20 +199,32 @@ Write-Host ""
 Set-Location "$frontend"
 npm run dev
 "@ | Out-File $frontendScript -Encoding utf8
+}
 
 Start-Process powershell -ArgumentList "-NoExit", "-File", $frontendScript
 
 
 # ---------------------------------------------------------------------------
-# 8. Done
+# 9. Done
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "  ===========================================" -ForegroundColor Green
 Write-Host "   FilmDice is starting up!" -ForegroundColor Green
 Write-Host "  ===========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "   App      http://localhost:3000" -ForegroundColor Yellow
-Write-Host "   API docs http://localhost:8000/docs" -ForegroundColor Yellow
+
+if ($Network -and $localIP) {
+    Write-Host "   PC browser  http://localhost:3000" -ForegroundColor Yellow
+    Write-Host "   Phone       http://${localIP}:3000" -ForegroundColor Green
+    Write-Host "   API docs    http://localhost:8000/docs" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "   Open http://${localIP}:3000 on your phone (same WiFi)" -ForegroundColor Green
+    Write-Host "   Then tap the 3-dot menu in Chrome > 'Add to Home screen'" -ForegroundColor Green
+} else {
+    Write-Host "   App      http://localhost:3000" -ForegroundColor Yellow
+    Write-Host "   API docs http://localhost:8000/docs" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "   Two new terminal windows have opened." -ForegroundColor Gray
 Write-Host "   Wait ~5 seconds for both services to be ready." -ForegroundColor Gray
