@@ -146,7 +146,7 @@ export default function DiscoverPage() {
       </header>
 
       {/* Card area */}
-      <div className="flex-1 flex items-center justify-center px-5 pb-24">
+      <div className="flex-1 flex items-start justify-center px-5 pt-10 pb-24 lg:items-center lg:pt-0">
         <div className="relative w-full max-w-sm h-[520px] lg:max-w-4xl lg:h-auto">
           {state === "loading" && (
             <div className="absolute inset-0 rounded-2xl bg-zinc-800/50 flex items-center justify-center lg:rounded-2xl">
@@ -190,7 +190,7 @@ export default function DiscoverPage() {
 
       {/* Toast */}
       {toastMsg && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-700 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-zinc-700 text-white text-xs font-medium px-3 py-2 rounded-full shadow-lg whitespace-nowrap">
           {toastMsg}
         </div>
       )}
