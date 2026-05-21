@@ -5,7 +5,7 @@ import { useRef, useState, useCallback } from "react"
 const SWIPE_THRESHOLD = 100  // px before we commit to a swipe
 const ROT_FACTOR = 0.08       // degrees per px of horizontal drag
 
-export type SwipeDirection = "left" | "right"
+export type SwipeDirection = "left" | "right" | "up"
 
 interface DragState {
   startX: number
@@ -35,8 +35,17 @@ export function useSwipe(onSwipe: (dir: SwipeDirection) => void) {
     if (!drag.current.isDragging) return
     drag.current.isDragging = false
 
-    const { x } = offset
-    if (Math.abs(x) >= SWIPE_THRESHOLD) {
+    const { x, y } = offset
+    const isUpDominant = Math.abs(y) > Math.abs(x) && y < -SWIPE_THRESHOLD
+
+    if (isUpDominant) {
+      setFlying("up")
+      setTimeout(() => {
+        setFlying(null)
+        setOffset({ x: 0, y: 0 })
+        onSwipe("up")
+      }, 350)
+    } else if (Math.abs(x) >= SWIPE_THRESHOLD) {
       const dir: SwipeDirection = x > 0 ? "right" : "left"
       setFlying(dir)
       setTimeout(() => {
@@ -56,10 +65,12 @@ export function useSwipe(onSwipe: (dir: SwipeDirection) => void) {
 
   const style: React.CSSProperties = {
     transform: flying
-      ? `translateX(${flying === "right" ? "120vw" : "-120vw"}) rotate(${flying === "right" ? 30 : -30}deg)`
+      ? flying === "up"
+        ? "translateY(-150%)"
+        : `translateX(${flying === "right" ? "120vw" : "-120vw"}) rotate(${flying === "right" ? 30 : -30}deg)`
       : `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg)`,
     opacity,
-    transition: flying || (!drag.current.isDragging && offset.x === 0)
+    transition: flying || (!drag.current.isDragging && offset.x === 0 && offset.y === 0)
       ? "transform 0.35s ease, opacity 0.35s ease"
       : "none",
     cursor: drag.current.isDragging ? "grabbing" : "grab",
@@ -75,13 +86,16 @@ export function useSwipe(onSwipe: (dir: SwipeDirection) => void) {
     }, 350)
   }, [onSwipe])
 
-  const likeIndicator = Math.min(1, Math.max(0, offset.x / SWIPE_THRESHOLD))
-  const nopeIndicator = Math.min(1, Math.max(0, -offset.x / SWIPE_THRESHOLD))
+  const isHorizontal = Math.abs(offset.x) >= Math.abs(offset.y)
+  const likeIndicator    = isHorizontal ? Math.min(1, Math.max(0,  offset.x / SWIPE_THRESHOLD)) : 0
+  const nopeIndicator    = isHorizontal ? Math.min(1, Math.max(0, -offset.x / SWIPE_THRESHOLD)) : 0
+  const watchedIndicator = !isHorizontal ? Math.min(1, Math.max(0, -offset.y / SWIPE_THRESHOLD)) : 0
 
   return {
     style,
     likeIndicator,
     nopeIndicator,
+    watchedIndicator,
     triggerSwipe,
     handlers: { onPointerDown, onPointerMove, onPointerUp },
   }

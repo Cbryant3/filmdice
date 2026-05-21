@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import type { InteractionRecord, Movie } from "@/lib/types"
-import { fetchWatchlist, fetchMovieById, deleteInteraction } from "@/lib/api"
+import { fetchWatchlist, fetchWatched, fetchMovieById, deleteInteraction } from "@/lib/api"
 import { getUserId } from "@/lib/userId"
 import TrailerModal from "@/components/TrailerModal"
 
@@ -13,9 +13,13 @@ interface EnrichedItem {
   loading: boolean
 }
 
+type Tab = "liked" | "watched"
+
 export default function WatchlistPage() {
   const { data: session, status: sessionStatus } = useSession()
-  const [items, setItems] = useState<EnrichedItem[]>([])
+  const [tab, setTab] = useState<Tab>("liked")
+  const [likedItems, setLikedItems] = useState<EnrichedItem[]>([])
+  const [watchedItems, setWatchedItems] = useState<EnrichedItem[]>([])
   const [pageState, setPageState] = useState<"loading" | "idle" | "empty">("loading")
   const [trailer, setTrailer] = useState<string | null>(null)
 
@@ -23,38 +27,52 @@ export default function WatchlistPage() {
     if (sessionStatus === "loading") return
     const uid = session?.user?.id ?? getUserId()
 
-    fetchWatchlist(uid)
-      .then((records) => {
-        if (records.length === 0) { setPageState("empty"); return }
+    async function load() {
+      const [liked, watched] = await Promise.all([
+        fetchWatchlist(uid).catch(() => [] as InteractionRecord[]),
+        fetchWatched(uid).catch(() => [] as InteractionRecord[]),
+      ])
 
-        // Show stubs immediately, then hydrate each card individually as data arrives
-        setItems(records.map(r => ({ record: r, movie: null, loading: true })))
-        setPageState("idle")
+      if (liked.length === 0 && watched.length === 0) {
+        setPageState("empty")
+        return
+      }
 
+      setPageState("idle")
+
+      function hydrateInto(
+        records: InteractionRecord[],
+        setter: React.Dispatch<React.SetStateAction<EnrichedItem[]>>,
+      ) {
+        setter(records.map(r => ({ record: r, movie: null, loading: true })))
         records.forEach((r, i) => {
           fetchMovieById(r.tmdb_movie_id)
-            .then(movie => {
-              setItems(prev => prev.map((item, idx) =>
-                idx === i ? { ...item, movie, loading: false } : item
-              ))
-            })
-            .catch(() => {
-              setItems(prev => prev.map((item, idx) =>
-                idx === i ? { ...item, loading: false } : item
-              ))
-            })
+            .then(movie => setter(prev => prev.map((item, idx) => idx === i ? { ...item, movie, loading: false } : item)))
+            .catch(()  => setter(prev => prev.map((item, idx) => idx === i ? { ...item, loading: false } : item)))
         })
-      })
-      .catch(() => setPageState("empty"))
+      }
+
+      hydrateInto(liked, setLikedItems)
+      hydrateInto(watched, setWatchedItems)
+    }
+
+    load().catch(() => setPageState("empty"))
   }, [sessionStatus, session])
 
-  async function handleRemove(record: InteractionRecord) {
+  async function handleRemove(record: InteractionRecord, fromTab: Tab) {
     const uid = session?.user?.id ?? getUserId()
     await deleteInteraction(uid, record.tmdb_movie_id).catch(console.error)
-    const remaining = items.filter(i => i.record.tmdb_movie_id !== record.tmdb_movie_id)
-    setItems(remaining)
-    if (remaining.length === 0) setPageState("empty")
+    const setter = fromTab === "liked" ? setLikedItems : setWatchedItems
+    setter(prev => {
+      const remaining = prev.filter(i => i.record.tmdb_movie_id !== record.tmdb_movie_id)
+      if (remaining.length === 0 && (fromTab === "liked" ? watchedItems : likedItems).length === 0) {
+        setPageState("empty")
+      }
+      return remaining
+    })
   }
+
+  const activeItems = tab === "liked" ? likedItems : watchedItems
 
   return (
     <main className="min-h-screen bg-zinc-950 pb-24">
@@ -62,26 +80,59 @@ export default function WatchlistPage() {
         <h1 className="text-white text-2xl font-black tracking-tight">
           Film<span className="text-indigo-400">Dice</span>
         </h1>
-        <p className="text-zinc-400 text-sm mt-1">Your liked movies</p>
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => setTab("liked")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              tab === "liked"
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "bg-transparent border-zinc-600 text-zinc-400 hover:border-zinc-400"
+            }`}
+          >
+            Liked {likedItems.length > 0 && `(${likedItems.length})`}
+          </button>
+          <button
+            onClick={() => setTab("watched")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              tab === "watched"
+                ? "bg-blue-600 border-blue-600 text-white"
+                : "bg-transparent border-zinc-600 text-zinc-400 hover:border-zinc-400"
+            }`}
+          >
+            Watched {watchedItems.length > 0 && `(${watchedItems.length})`}
+          </button>
+        </div>
       </header>
 
       {pageState === "loading" && (
         <div className="flex items-center justify-center h-64">
-          <div className="text-zinc-600 text-sm">Loading watchlist…</div>
+          <div className="text-zinc-600 text-sm">Loading…</div>
         </div>
       )}
 
       {pageState === "empty" && (
         <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-6">
-          <div className="text-5xl">♥</div>
+          <div className="text-5xl">{tab === "liked" ? "♥" : "👁"}</div>
           <p className="text-white font-semibold">Nothing here yet</p>
-          <p className="text-zinc-400 text-sm">Swipe right on a movie to save it</p>
+          <p className="text-zinc-400 text-sm">
+            {tab === "liked" ? "Swipe right on a movie to save it" : "Swipe up on a movie to mark it watched"}
+          </p>
         </div>
       )}
 
-      {pageState === "idle" && (
+      {pageState === "idle" && activeItems.length === 0 && (
+        <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-6">
+          <div className="text-5xl">{tab === "liked" ? "♥" : "👁"}</div>
+          <p className="text-white font-semibold">Nothing here yet</p>
+          <p className="text-zinc-400 text-sm">
+            {tab === "liked" ? "Swipe right on a movie to save it" : "Swipe up on a movie to mark it watched"}
+          </p>
+        </div>
+      )}
+
+      {pageState === "idle" && activeItems.length > 0 && (
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
-          {items.map(({ record, movie, loading }) => (
+          {activeItems.map(({ record, movie, loading }) => (
             <div key={record.tmdb_movie_id} className="relative rounded-xl overflow-hidden bg-zinc-800 aspect-[2/3]">
               {loading && (
                 <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
@@ -117,7 +168,7 @@ export default function WatchlistPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => handleRemove(record)}
+                      onClick={() => handleRemove(record, tab)}
                       className="text-[10px] bg-red-900/60 hover:bg-red-700/80 text-red-300 px-2 py-0.5 rounded-full transition-colors"
                     >
                       Remove

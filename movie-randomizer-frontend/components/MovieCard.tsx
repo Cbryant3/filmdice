@@ -42,7 +42,7 @@ function ProviderRow({ label, providers, link }: { label: string; providers: Pro
 export default function MovieCard({ movie, onSwipe }: Props) {
   const [showTrailer, setShowTrailer] = useState(false)
 
-  const { style, likeIndicator, nopeIndicator, triggerSwipe, handlers } =
+  const { style, likeIndicator, nopeIndicator, watchedIndicator, triggerSwipe, handlers } =
     useSwipe((dir) => onSwipe(dir, movie))
 
   const flatrate = movie.where_to_watch?.flatrate ?? []
@@ -97,6 +97,14 @@ export default function MovieCard({ movie, onSwipe }: Props) {
             style={{ opacity: nopeIndicator }}
           >
             NOPE
+          </div>
+
+          {/* WATCHED stamp */}
+          <div
+            className="absolute top-10 left-1/2 -translate-x-1/2 border-4 border-blue-400 text-blue-400 font-black text-3xl tracking-widest px-3 py-1 rounded-lg"
+            style={{ opacity: watchedIndicator }}
+          >
+            SEEN
           </div>
 
           {/* ── Mobile-only info overlay ── */}
@@ -225,6 +233,14 @@ export default function MovieCard({ movie, onSwipe }: Props) {
               </button>
               <button
                 onPointerDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); triggerSwipe("up") }}
+                className="w-12 h-12 rounded-full bg-zinc-800 border-2 border-blue-400 text-blue-400 text-xl flex items-center justify-center hover:bg-blue-400 hover:text-white transition-colors"
+                title="Mark as Watched"
+              >
+                👁
+              </button>
+              <button
+                onPointerDown={e => e.stopPropagation()}
                 onClick={e => { e.stopPropagation(); triggerSwipe("right") }}
                 className="w-12 h-12 rounded-full bg-zinc-800 border-2 border-green-400 text-green-400 text-xl flex items-center justify-center hover:bg-green-400 hover:text-white transition-colors"
                 title="Like"
@@ -244,6 +260,13 @@ export default function MovieCard({ movie, onSwipe }: Props) {
           title="Skip"
         >
           ✕
+        </button>
+        <button
+          onClick={() => triggerSwipe("up")}
+          className="w-14 h-14 rounded-full bg-zinc-800 border-2 border-blue-400 text-blue-400 text-2xl flex items-center justify-center hover:bg-blue-400 hover:text-white transition-colors shadow-lg"
+          title="Mark as Watched"
+        >
+          👁
         </button>
         <button
           onClick={() => triggerSwipe("right")}

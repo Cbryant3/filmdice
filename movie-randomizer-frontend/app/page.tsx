@@ -88,6 +88,9 @@ export default function DiscoverPage() {
     if (dir === "right") {
       showToast("Added to liked ♥")
       await sendInteraction(userId.current, swiped.id, "liked").catch(console.error)
+    } else if (dir === "up") {
+      showToast("Marked as watched 👁")
+      await sendInteraction(userId.current, swiped.id, "watched").catch(console.error)
     } else {
       await sendInteraction(userId.current, swiped.id, undefined, true).catch(console.error)
     }
@@ -134,6 +137,13 @@ export default function DiscoverPage() {
         <h1 className="text-white text-2xl font-black tracking-tight">
           Film<span className="text-indigo-400">Dice</span>
         </h1>
+        <div className="flex-1 flex justify-center px-2">
+          {toastMsg && (
+            <div className="bg-zinc-700 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap">
+              {toastMsg}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setFiltersOpen(true)}
           className="flex items-center gap-2 text-sm font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-full transition-colors"
@@ -188,12 +198,6 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Toast */}
-      {toastMsg && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-zinc-700 text-white text-xs font-medium px-3 py-2 rounded-full shadow-lg whitespace-nowrap">
-          {toastMsg}
-        </div>
-      )}
 
       <FilterPanel
         open={filtersOpen}

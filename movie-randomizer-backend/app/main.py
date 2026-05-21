@@ -251,6 +251,7 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=404, detail="No movies found for those filters.")
 
     suppress_since = datetime.now(timezone.utc) - timedelta(days=req.suppress_days)
+    watched_suppress_since = datetime.now(timezone.utc) - timedelta(days=90)
 
     for _ in range(req.reroll_max):
         page = random.randint(1, total_pages)
@@ -273,9 +274,11 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
         )
         row = (await db.execute(q)).scalar_one_or_none()
         if row:
-            if row.skip or row.status in ("watched", "liked"):
+            if row.skip or row.status == "liked":
                 continue
-            if row.last_surfaced_at and row.last_surfaced_at >= suppress_since:
+            if row.status == "watched" and row.last_surfaced_at and row.last_surfaced_at >= watched_suppress_since:
+                continue
+            elif row.status != "watched" and row.last_surfaced_at and row.last_surfaced_at >= suppress_since:
                 continue
 
         # Fetch details, trailer, providers, and cert concurrently
@@ -463,6 +466,7 @@ async def for_you(req: ForYouRequest, db: AsyncSession = Depends(get_db)):
 
     region = req.region
     suppress_since = datetime.now(timezone.utc) - timedelta(days=req.suppress_days)
+    watched_suppress_since = datetime.now(timezone.utc) - timedelta(days=90)
 
     for _ in range(req.reroll_max):
         page = random.randint(1, total_pages)
@@ -483,9 +487,11 @@ async def for_you(req: ForYouRequest, db: AsyncSession = Depends(get_db)):
         )
         row = (await db.execute(q)).scalar_one_or_none()
         if row:
-            if row.skip or row.status in ("watched", "liked"):
+            if row.skip or row.status == "liked":
                 continue
-            if row.last_surfaced_at and row.last_surfaced_at >= suppress_since:
+            if row.status == "watched" and row.last_surfaced_at and row.last_surfaced_at >= watched_suppress_since:
+                continue
+            elif row.status != "watched" and row.last_surfaced_at and row.last_surfaced_at >= suppress_since:
                 continue
 
         details, videos_json, providers_json = await asyncio.gather(

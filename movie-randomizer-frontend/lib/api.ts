@@ -45,6 +45,10 @@ export async function fetchWatchlist(userId: string): Promise<InteractionRecord[
   return req<InteractionRecord[]>(`/users/${userId}/history?status=liked`)
 }
 
+export async function fetchWatched(userId: string): Promise<InteractionRecord[]> {
+  return req<InteractionRecord[]>(`/users/${userId}/history?status=watched`)
+}
+
 export async function fetchMovieById(id: number): Promise<Movie> {
   return req<Movie>(`/movies/${id}`)
 }
