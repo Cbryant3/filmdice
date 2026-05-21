@@ -24,6 +24,8 @@ export default function DiscoverPage() {
   const filtersRef = useRef<Filters>({})
   const swipeCount = useRef<number>(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prefetchedMovie = useRef<Movie | null>(null)
+  const prefetching = useRef(false)
 
   // Wait for session to resolve so we use the real user ID if signed in
   useEffect(() => {
@@ -36,6 +38,19 @@ export default function DiscoverPage() {
   // Keep a ref in sync so loadNext always has the latest filters without stale closure
   useEffect(() => { filtersRef.current = filters }, [filters])
 
+  const prefetchNext = useCallback(async () => {
+    if (prefetching.current) return
+    prefetching.current = true
+    try {
+      const m = await fetchRandomMovie(userId.current, filtersRef.current)
+      prefetchedMovie.current = m
+    } catch {
+      prefetchedMovie.current = null
+    } finally {
+      prefetching.current = false
+    }
+  }, [])
+
   const loadNext = useCallback(async (overrideFilters?: Filters) => {
     setState("loading")
     setMovie(null)
@@ -44,11 +59,12 @@ export default function DiscoverPage() {
       const m = await fetchRandomMovie(userId.current, overrideFilters ?? filtersRef.current)
       setMovie(m)
       setState("idle")
+      prefetchNext()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setState(msg.includes("404") ? "empty" : "error")
     }
-  }, [])
+  }, [prefetchNext])
 
   const loadForYou = useCallback(async () => {
     setState("loading")
@@ -59,13 +75,14 @@ export default function DiscoverPage() {
       if (m) {
         setMovie(m)
         setState("idle")
+        prefetchNext()
       } else {
         loadNext()
       }
     } catch {
       loadNext()
     }
-  }, [loadNext])
+  }, [loadNext, prefetchNext])
 
   const handleSwipe = useCallback(async (dir: SwipeDirection, swiped: Movie) => {
     if (dir === "right") {
@@ -75,12 +92,20 @@ export default function DiscoverPage() {
       await sendInteraction(userId.current, swiped.id, undefined, true).catch(console.error)
     }
     swipeCount.current += 1
+
+    const pre = prefetchedMovie.current
+    prefetchedMovie.current = null
+
     if (swipeCount.current % 10 === 0) {
       loadForYou()
+    } else if (pre) {
+      setMovie(pre)
+      setState("idle")
+      prefetchNext()
     } else {
       loadNext()
     }
-  }, [loadNext, loadForYou])
+  }, [loadNext, loadForYou, prefetchNext])
 
   function handleFiltersChange(f: Filters) {
     setFilters(f)

@@ -44,6 +44,5 @@ class UserMovieInteraction(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "tmdb_movie_id", name="uq_user_movie"),
-        Index("ix_user_movie_user", "user_id"),
         Index("ix_user_movie_tmdb", "tmdb_movie_id"),
     )
