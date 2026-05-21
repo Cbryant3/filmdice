@@ -107,8 +107,10 @@ Write-OK "Python dependencies up to date"
 Write-Step "Starting PostgreSQL (Docker)..."
 
 Push-Location $backend
-try { docker compose up -d *>$null } catch { }
+$ErrorActionPreference = "SilentlyContinue"
+docker compose up -d *>$null
 $composeExit = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
 Pop-Location
 
 if ($composeExit -ne 0) {
