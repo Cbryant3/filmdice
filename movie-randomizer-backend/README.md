@@ -1,4 +1,4 @@
-# FilmDice — Backend API
+# FilmDice - Backend API
 
 FastAPI backend for FilmDice, a Tinder-style movie discovery app. Wraps the TMDB Discover API with filtering, reroll logic, user interaction tracking, and a preference learning engine.
 
@@ -28,6 +28,7 @@ Create `.env` in this directory:
 ```env
 TMDB_API_KEY=your_tmdb_api_key_here
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/moviedb
+TMDB_AUTH_MODE=v3
 ```
 
 ### 3. Start the database
@@ -41,7 +42,7 @@ docker compose up -d
 ### 4. Run the API
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 API docs: `http://localhost:8000/docs`
@@ -112,10 +113,12 @@ Every time a movie is surfaced, its `genre_ids` and `release_year` are saved to 
 |---|---|
 | Liked | +3.0 |
 | Watched | +1.0 |
-| Dropped | −1.0 |
-| Skipped | −0.5 |
+| Dropped | -1.0 |
+| Skipped | -0.5 |
 
 `/for-you` picks the top-scoring genre and decade and builds a targeted Discover query.
+
+Scores are cached in the `user_preference_cache` table (one row per user) and invalidated on every interaction write or delete, so reads are fast and scores are always fresh.
 
 ---
 
@@ -125,10 +128,9 @@ Every time a movie is surfaced, its `genre_ids` and `release_year` are saved to 
 app/
 ├── main.py          # All routes and endpoint logic
 ├── schemas.py       # Pydantic request/response models
-├── models.py        # SQLAlchemy ORM models
+├── models.py        # SQLAlchemy ORM models (UserMovieInteraction, UserPreferenceCache)
 ├── services.py      # Preference scoring
 ├── tmdb_client.py   # TMDB API client (shared httpx client)
 ├── db.py            # Async DB session factory
-├── config.py        # Settings from .env
-└── cache.py         # In-memory response cache
+└── config.py        # Settings from .env
 ```

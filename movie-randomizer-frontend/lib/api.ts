@@ -3,10 +3,21 @@ import type { Filters, Genre, InteractionRecord, Movie, UserPreferences } from "
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15_000)
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      ...init,
+    })
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw new Error("Request timed out - is the backend running?")
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`${res.status} ${res.statusText}: ${body}`)
@@ -55,11 +66,22 @@ export async function deleteInteraction(userId: string, movieId: number): Promis
 }
 
 export async function fetchForYou(userId: string, region?: string, rerollMax = 10): Promise<Movie | null> {
-  const res = await fetch(`${BASE}/for-you`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, region: region || "US", reroll_max: rerollMax }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15_000)
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/for-you`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, region: region || "US", reroll_max: rerollMax }),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw new Error("Request timed out - is the backend running?")
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   // 202 = not enough data yet — caller should fall back to regular random
   if (res.status === 202) return null
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)

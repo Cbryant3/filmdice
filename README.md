@@ -14,8 +14,8 @@ Built with a FastAPI backend and a Next.js frontend, backed by The Movie Databas
 - Dice-roll loading animation with procedural Web Audio sound between cards
 
 ### Smart Recommendations
-- **"For You" cards** — every 10th swipe surfaces a movie matched to your learned preferences
-- Preference engine tallies genres and decades from likes/skips (liked = +3, watched = +1, dropped = −1, skipped = −0.5)
+- **"For You" cards** - every 10th swipe surfaces a movie matched to your learned preferences
+- Preference engine tallies genres and decades from likes/skips (liked = +3, watched = +1, dropped = -1, skipped = -0.5)
 - Falls back to a regular random pick if not enough history exists yet
 
 ### Rich Movie Cards
@@ -23,7 +23,11 @@ Built with a FastAPI backend and a Next.js frontend, backed by The Movie Databas
 - Full overview (desktop)
 - YouTube trailer modal
 - Streaming providers (subscription / rent / buy) with JustWatch deep links
-- **⭐ For You** badge on personalized picks
+- **For You** badge on personalized picks
+
+### Accounts
+- Sign in with Google (Auth.js v5) to sync your swipe history across devices
+- Anonymous mode uses a localStorage UUID — no sign-in required
 
 ### Filter Panel
 | Filter | Options |
@@ -42,6 +46,7 @@ Built with a FastAPI backend and a Next.js frontend, backed by The Movie Databas
 - Concurrent TMDB calls (details + trailer + providers fetched in parallel)
 - Genre and release-year data saved on every interaction for preference learning
 - Suppression window prevents the same movie surfacing twice within N days
+- Preference scores cached per user in PostgreSQL; invalidated on every interaction write
 
 ---
 
@@ -50,6 +55,7 @@ Built with a FastAPI backend and a Next.js frontend, backed by The Movie Databas
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js 15 (App Router), Tailwind CSS v4, TypeScript |
+| Auth | Auth.js v5 (NextAuth) with Google OAuth |
 | Backend | FastAPI, Python 3.13 |
 | Database | PostgreSQL (Docker), SQLAlchemy async, asyncpg |
 | HTTP Client | httpx (shared async client) |
@@ -62,6 +68,8 @@ Built with a FastAPI backend and a Next.js frontend, backed by The Movie Databas
 
 ```
 FilmDice/
+├── start.ps1                   # One-command startup (Windows)
+├── stop.ps1                    # Stops all services
 ├── movie-randomizer-backend/   # FastAPI API
 │   ├── app/
 │   │   ├── main.py             # Routes
@@ -70,23 +78,28 @@ FilmDice/
 │   │   ├── services.py         # Preference scoring logic
 │   │   ├── tmdb_client.py      # TMDB API client
 │   │   ├── db.py               # Async DB session
-│   │   ├── config.py           # Environment config
-│   │   └── cache.py            # In-memory cache
+│   │   └── config.py           # Environment config
 │   ├── docker-compose.yml
 │   └── requirements.txt
 │
 └── movie-randomizer-frontend/  # Next.js app
+    ├── auth.ts                 # Auth.js v5 config (Google OAuth)
     ├── app/
     │   ├── page.tsx            # Discover page (swipe UI)
-    │   └── watchlist/          # Liked movies list
+    │   ├── watchlist/          # Liked movies list
+    │   └── api/auth/           # Auth.js route handler
     ├── components/
     │   ├── MovieCard.tsx       # Swipeable card
     │   ├── FilterPanel.tsx     # Slide-out filter drawer
     │   ├── DiceLoader.tsx      # Loading animation
     │   ├── RangeSlider.tsx     # Dual-handle slider
-    │   └── TrailerModal.tsx    # YouTube embed modal
+    │   ├── TrailerModal.tsx    # YouTube embed modal
+    │   ├── Navbar.tsx          # Sign in/out + navigation
+    │   ├── Providers.tsx       # SessionProvider wrapper
+    │   └── ErrorBoundary.tsx   # Top-level error fallback
     ├── hooks/
-    │   └── useSwipe.ts         # Pointer-events swipe hook
+    │   ├── useSwipe.ts         # Pointer-events swipe hook
+    │   └── useUserId.ts        # Session or anonymous user ID
     └── lib/
         ├── api.ts              # API functions
         ├── types.ts            # Shared TypeScript types
@@ -109,7 +122,25 @@ git clone https://github.com/cbryant3/filmdice.git
 cd filmdice
 ```
 
-### 2. Backend setup
+### 2. Quick start (Windows)
+
+```powershell
+.\start.ps1
+```
+
+The script checks prerequisites, creates the Python venv, installs dependencies, starts PostgreSQL via Docker, and opens the backend and frontend in separate terminals.
+
+### 3. Manual setup
+
+**Backend** — create `movie-randomizer-backend/.env`:
+
+```env
+TMDB_API_KEY=your_tmdb_api_key_here
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/moviedb
+TMDB_AUTH_MODE=v3
+```
+
+Then:
 
 ```bash
 cd movie-randomizer-backend
@@ -117,25 +148,22 @@ python -m venv .venv
 .venv\Scripts\activate        # Windows
 # source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
+docker compose up -d
+python -m uvicorn app.main:app --reload
 ```
 
-Create `.env` in `movie-randomizer-backend/`:
+API docs: `http://localhost:8000/docs`
+
+**Frontend** — create `movie-randomizer-frontend/.env.local`:
 
 ```env
-TMDB_API_KEY=your_tmdb_api_key_here
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/moviedb
+NEXT_PUBLIC_API_URL=http://localhost:8000
+AUTH_SECRET=your_random_secret_here
+AUTH_GOOGLE_ID=your_google_client_id
+AUTH_GOOGLE_SECRET=your_google_client_secret
 ```
 
-Start the database and API:
-
-```bash
-docker compose up -d
-uvicorn app.main:app --reload
-```
-
-API docs available at `http://localhost:8000/docs`
-
-### 3. Frontend setup
+Get Google credentials at [console.cloud.google.com](https://console.cloud.google.com/apis/credentials) — add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI.
 
 ```bash
 cd movie-randomizer-frontend
@@ -143,7 +171,7 @@ npm install
 npm run dev
 ```
 
-App available at `http://localhost:3000`
+App: `http://localhost:3000`
 
 ---
 

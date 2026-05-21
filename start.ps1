@@ -1,4 +1,4 @@
-# FilmDice — Start Script
+# FilmDice - Start Script
 # Sets up and launches the backend (FastAPI) and frontend (Next.js) in separate windows.
 
 param(
@@ -20,7 +20,7 @@ function Write-Fail($msg) { Write-Host "`n  ERROR: $msg`n" -ForegroundColor Red;
 Clear-Host
 Write-Host ""
 Write-Host "  ===========================================" -ForegroundColor Magenta
-Write-Host "   FilmDice — Startup" -ForegroundColor Magenta
+Write-Host "   FilmDice - Startup" -ForegroundColor Magenta
 Write-Host "  ===========================================" -ForegroundColor Magenta
 
 
@@ -52,7 +52,7 @@ Write-Step "Checking environment config..."
 $envFile = Join-Path $backend ".env"
 
 if (-not (Test-Path $envFile)) {
-    Write-Warn ".env not found — creating template"
+    Write-Warn ".env not found - creating template"
     @"
 TMDB_API_KEY=your_tmdb_api_key_here
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/moviedb
@@ -122,7 +122,7 @@ Write-Step "Checking Node.js dependencies..."
 
 $nodeModules = Join-Path $frontend "node_modules"
 if (-not (Test-Path $nodeModules)) {
-    Write-Host "     Running npm install (first time — this may take a minute)..." -ForegroundColor Gray
+    Write-Host "     Running npm install (first time - this may take a minute)..." -ForegroundColor Gray
     Push-Location $frontend
     npm install --silent
     Pop-Location
