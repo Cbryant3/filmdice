@@ -214,7 +214,7 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
     if f.region:
         discover_params["region"] = f.region
     if f.genre_ids:
-        discover_params["with_genres"] = ",".join(map(str, f.genre_ids))
+        discover_params["with_genres"] = "|".join(map(str, f.genre_ids))
     if f.exclude_genre_ids:
         discover_params["without_genres"] = ",".join(map(str, f.exclude_genre_ids))
     if f.year_min:
