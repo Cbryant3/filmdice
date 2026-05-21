@@ -54,11 +54,11 @@ export async function deleteInteraction(userId: string, movieId: number): Promis
   await req(`/interactions/${userId}/${movieId}`, { method: "DELETE" })
 }
 
-export async function fetchForYou(userId: string, rerollMax = 10): Promise<Movie | null> {
+export async function fetchForYou(userId: string, region?: string, rerollMax = 10): Promise<Movie | null> {
   const res = await fetch(`${BASE}/for-you`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, reroll_max: rerollMax }),
+    body: JSON.stringify({ user_id: userId, region: region || "US", reroll_max: rerollMax }),
   })
   // 202 = not enough data yet — caller should fall back to regular random
   if (res.status === 202) return null

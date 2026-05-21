@@ -17,7 +17,8 @@ export default function RangeSlider({
   const trackRef = useRef<HTMLDivElement>(null)
 
   function snapToStep(raw: number) {
-    return Math.round(raw / step) * step
+    const decimals = step < 1 ? (String(step).split(".")[1]?.length ?? 0) : 0
+    return parseFloat((Math.round(raw / step) * step).toFixed(decimals))
   }
 
   function valueFromClientX(clientX: number): number {

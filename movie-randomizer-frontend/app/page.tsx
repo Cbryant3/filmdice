@@ -21,6 +21,7 @@ export default function DiscoverPage() {
   const userId = useRef<string>("")
   const filtersRef = useRef<Filters>({})
   const swipeCount = useRef<number>(0)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     userId.current = getUserId()
@@ -50,7 +51,7 @@ export default function DiscoverPage() {
     setMovie(null)
     setLoadCount(c => c + 1)
     try {
-      const m = await fetchForYou(userId.current)
+      const m = await fetchForYou(userId.current, filtersRef.current.region)
       if (m) {
         setMovie(m)
         setState("idle")
@@ -88,8 +89,9 @@ export default function DiscoverPage() {
   }
 
   function showToast(msg: string) {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
     setToastMsg(msg)
-    setTimeout(() => setToastMsg(null), 2000)
+    toastTimer.current = setTimeout(() => setToastMsg(null), 2000)
   }
 
   const activeFilterCount = Object.entries(filters).filter(

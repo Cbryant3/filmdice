@@ -8,11 +8,10 @@ from typing import List
 
 import random
 import asyncio
-import app.tmdb_client as tmdb_client
 from app.tmdb_client import (
     discover_movies, get_movie, get_movie_videos,
     get_watch_providers, get_release_dates, get_genres,
-    poster_url,
+    poster_url, startup as tmdb_startup, shutdown as tmdb_shutdown,
 )
 from app.config import settings
 from app.db import Base, engine, get_db
@@ -29,16 +28,16 @@ from app.services import compute_preference_scores
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await tmdb_client.startup()
+    await tmdb_startup()
     yield
-    await tmdb_client.shutdown()
+    await tmdb_shutdown()
 
 
 app = FastAPI(title="FilmDice API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[o.strip() for o in settings.allowed_origins.split(",")],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -420,7 +419,7 @@ async def for_you(req: ForYouRequest, db: AsyncSession = Depends(get_db)):
     if total_pages <= 0:
         raise HTTPException(status_code=404, detail="No for-you movies found.")
 
-    region = "US"
+    region = req.region
     suppress_since = datetime.now(timezone.utc) - timedelta(days=req.suppress_days)
 
     for _ in range(req.reroll_max):
