@@ -20,6 +20,29 @@ const SORT_OPTIONS = [
 
 const DECADES = [1960, 1970, 1980, 1990, 2000, 2010, 2020]
 
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: "",   label: "Any Language" },
+  { code: "en", label: "English" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "es", label: "Spanish" },
+  { code: "it", label: "Italian" },
+  { code: "pt", label: "Portuguese" },
+  { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" },
+  { code: "zh", label: "Chinese" },
+  { code: "hi", label: "Hindi" },
+  { code: "ru", label: "Russian" },
+  { code: "ar", label: "Arabic" },
+  { code: "tr", label: "Turkish" },
+  { code: "nl", label: "Dutch" },
+  { code: "sv", label: "Swedish" },
+  { code: "pl", label: "Polish" },
+  { code: "da", label: "Danish" },
+  { code: "no", label: "Norwegian" },
+  { code: "fi", label: "Finnish" },
+]
+
 const REGIONS: { code: string; label: string }[] = [
   { code: "",   label: "🌍 Any Region" },
   // Americas
@@ -162,6 +185,25 @@ export default function FilterPanel({ open, onClose, filters, onChange }: Props)
             </select>
             <p className="text-zinc-600 text-xs mt-1.5">
               Affects streaming availability and content ratings.
+            </p>
+          </section>
+
+          {/* Language */}
+          <section>
+            <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
+              Language
+            </label>
+            <select
+              value={filters.language ?? ""}
+              onChange={e => set("language", e.target.value || undefined)}
+              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            >
+              {LANGUAGES.map(l => (
+                <option key={l.code} value={l.code}>{l.label}</option>
+              ))}
+            </select>
+            <p className="text-zinc-600 text-xs mt-1.5">
+              Filters by original language of the film.
             </p>
           </section>
 
