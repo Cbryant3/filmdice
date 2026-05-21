@@ -5,6 +5,6 @@ class Settings(BaseSettings):
     tmdb_api_key: str
     tmdb_auth_mode: str = "v4"  # "v3" or "v4"
     database_url: str
-    allowed_origins: str = "http://localhost:3000"  # comma-separated for production
+    allowed_origins: str = "*"  # restrict to specific origins in production
 
 settings = Settings()
