@@ -1,4 +1,4 @@
-# FilmDice — Stop Script
+# FilmDice - Stop Script
 # Stops the uvicorn backend, Next.js dev server, and PostgreSQL Docker container.
 
 $root    = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -11,7 +11,7 @@ function Write-Warn($msg) { Write-Host "     !   $msg" -ForegroundColor Yellow }
 Clear-Host
 Write-Host ""
 Write-Host "  ===========================================" -ForegroundColor Magenta
-Write-Host "   FilmDice — Shutdown" -ForegroundColor Magenta
+Write-Host "   FilmDice - Shutdown" -ForegroundColor Magenta
 Write-Host "  ===========================================" -ForegroundColor Magenta
 
 
@@ -62,7 +62,9 @@ Write-Step "Stopping PostgreSQL (Docker)..."
 
 try {
     Push-Location $backend
-    docker compose stop 2>&1 | Out-Null
+    $ErrorActionPreference = "SilentlyContinue"
+    docker compose stop *>$null
+    $ErrorActionPreference = "Stop"
     Pop-Location
     Write-OK "PostgreSQL stopped"
 } catch {
