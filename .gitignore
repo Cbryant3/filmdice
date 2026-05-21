@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Environment
+.env
+
+# Claude / editor metadata
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
