@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Boolean, DateTime, UniqueConstraint, Index
+from sqlalchemy import String, Integer, Boolean, DateTime, UniqueConstraint, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.db import Base
@@ -16,6 +16,10 @@ class UserMovieInteraction(Base):
 
     # No-queue list (reroll if True)
     skip: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Preference learning — captured from discover result at surfacing time
+    genre_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    release_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Used to suppress repeats
     last_surfaced_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1,142 +1,167 @@
-FilmDice — Smart Movie Recommendation API
+# FilmDice 🎲
 
-FilmDice is a backend service designed to power a full-featured movie recommendation application. The goal of this project is to provide users with intelligent, filter-driven movie suggestions that are immediately actionable (watchable, relevant, and personalized).
+A Tinder-style movie discovery app. Swipe right to like, left to skip. The more you swipe, the smarter it gets — FilmDice learns your taste and injects a personalized **⭐ For You** recommendation every 10 cards.
 
-The API integrates with The Movie Database (TMDb) to retrieve movie data and enhances it with user-specific behavior tracking and filtering logic.
+Built with a FastAPI backend and a Next.js frontend, backed by The Movie Database (TMDB) API.
 
-Project Purpose
+---
 
-This project is intended to serve as the backend foundation for a production-ready movie discovery application. It focuses on solving common user problems such as:
+## Features
 
-Decision fatigue when choosing a movie
-Receiving recommendations that are not currently available to watch
-Repeated suggestions of previously seen content
-Lack of personalization in random recommendations
+### Swipe Interface
+- Drag cards left/right on mobile or use keyboard-style buttons
+- **LIKE / NOPE** stamps animate as you drag
+- Dice-roll loading animation with procedural Web Audio sound between cards
 
-The system is designed to evolve into a complete application with a frontend interface, user accounts, and advanced recommendation features.
+### Smart Recommendations
+- **"For You" cards** — every 10th swipe surfaces a movie matched to your learned preferences
+- Preference engine tallies genres and decades from likes/skips (liked = +3, watched = +1, dropped = −1, skipped = −0.5)
+- Falls back to a regular random pick if not enough history exists yet
 
-Core Features
-Random Movie Generation
-Generates a random movie using TMDb Discover API
-Supports controlled randomness through filtering and reroll logic
-Advanced Filtering
-Genre inclusion and exclusion
-Year range and decade selection
-Runtime constraints
-Rating and popularity thresholds
-Language and region filtering
-Content rating (MPAA-style) inclusion and exclusion
-Streaming Availability
-Returns where a movie can be watched (subscription, rent, buy)
-Optional enforcement of “must be streaming”
-Movie Metadata
+### Rich Movie Cards
+- Poster, title, release year, runtime, content rating
+- Full overview (desktop)
+- YouTube trailer modal
+- Streaming providers (subscription / rent / buy) with JustWatch deep links
+- **⭐ For You** badge on personalized picks
 
-Each response includes:
+### Filter Panel
+| Filter | Options |
+|---|---|
+| Sort | Popularity · Highest Rated · Newest First |
+| Region | 51 countries across all continents, or Any Region |
+| Genres | All TMDB genres (multi-select pills) |
+| Decade | 1960s – 2020s (multi-select, spans across gaps) |
+| Rating | Dual-handle slider 0 – 10 |
+| Content Rating | G · PG · PG-13 · R · NC-17 |
+| Max Runtime | Any · 90m · 120m · 150m · 180m |
+| Streaming Only | Toggle — only shows movies on a subscription service |
 
-Title
-Overview
-Poster
-Runtime
-Trailer (YouTube)
-Streaming providers
-Content rating
-User Interaction Tracking
-Tracks watched movies
-Tracks skipped (no-queue) movies
-Tracks dropped movies
-Prevents resurfacing of watched or skipped content
-Suppresses recently suggested movies
-Performance Optimization
-In-memory caching for external API calls
-Reduced redundant TMDb requests
-Configurable reroll attempts
-Technology Stack
-Backend Framework: FastAPI
-Database: PostgreSQL
-ORM: SQLAlchemy (async)
-HTTP Client: httpx
-Containerization: Docker
-External API: The Movie Database (TMDb)
-Project Structure
-app/
-├── main.py              # FastAPI routes and core logic
-├── schemas.py           # Request and response models
-├── tmdb_client.py       # TMDb API integration
-├── db.py                # Database connection setup
-├── models.py            # Database models
-├── config.py            # Environment configuration
-├── cache.py             # In-memory caching layer
-Setup Instructions
-1. Clone the Repository
-git clone <your-repo-url>
+### Backend
+- Reroll loop skips movies you've already seen, liked, or were shown recently
+- Concurrent TMDB calls (details + trailer + providers fetched in parallel)
+- Genre and release-year data saved on every interaction for preference learning
+- Suppression window prevents the same movie surfacing twice within N days
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15 (App Router), Tailwind CSS v4, TypeScript |
+| Backend | FastAPI, Python 3.13 |
+| Database | PostgreSQL (Docker), SQLAlchemy async, asyncpg |
+| HTTP Client | httpx (shared async client) |
+| External API | The Movie Database (TMDB) v3/v4 |
+| Containerization | Docker Compose |
+
+---
+
+## Project Structure
+
+```
+FilmDice/
+├── movie-randomizer-backend/   # FastAPI API
+│   ├── app/
+│   │   ├── main.py             # Routes
+│   │   ├── schemas.py          # Pydantic models
+│   │   ├── models.py           # SQLAlchemy ORM
+│   │   ├── services.py         # Preference scoring logic
+│   │   ├── tmdb_client.py      # TMDB API client
+│   │   ├── db.py               # Async DB session
+│   │   ├── config.py           # Environment config
+│   │   └── cache.py            # In-memory cache
+│   ├── docker-compose.yml
+│   └── requirements.txt
+│
+└── movie-randomizer-frontend/  # Next.js app
+    ├── app/
+    │   ├── page.tsx            # Discover page (swipe UI)
+    │   └── watchlist/          # Liked movies list
+    ├── components/
+    │   ├── MovieCard.tsx       # Swipeable card
+    │   ├── FilterPanel.tsx     # Slide-out filter drawer
+    │   ├── DiceLoader.tsx      # Loading animation
+    │   ├── RangeSlider.tsx     # Dual-handle slider
+    │   └── TrailerModal.tsx    # YouTube embed modal
+    ├── hooks/
+    │   └── useSwipe.ts         # Pointer-events swipe hook
+    └── lib/
+        ├── api.ts              # API functions
+        ├── types.ts            # Shared TypeScript types
+        └── userId.ts           # Anonymous user ID (localStorage)
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- Docker Desktop
+
+### 1. Clone
+
+```bash
+git clone https://github.com/cbryant3/filmdice.git
+cd filmdice
+```
+
+### 2. Backend setup
+
+```bash
 cd movie-randomizer-backend
-2. Create Virtual Environment
 python -m venv .venv
-.venv\Scripts\activate
-3. Install Dependencies
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
-4. Configure Environment Variables
+```
 
-Create a .env file in the root directory:
+Create `.env` in `movie-randomizer-backend/`:
 
-TMDB_API_KEY=your_tmdb_api_key
+```env
+TMDB_API_KEY=your_tmdb_api_key_here
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/moviedb
-5. Start Database (Docker)
+```
+
+Start the database and API:
+
+```bash
 docker compose up -d
-6. Run the API
-python -m uvicorn app.main:app --reload
-7. Access API Documentation
-http://127.0.0.1:8000/docs
-API Endpoints
-Get Random Movie
+uvicorn app.main:app --reload
+```
 
-POST /random-movie
+API docs available at `http://localhost:8000/docs`
 
-Example request:
+### 3. Frontend setup
 
-{
-  "user_id": "ro-1",
-  "filters": {
-    "genre_ids": [27],
-    "year_min": 2013,
-    "year_max": 2013,
-    "rating_min": 6.0
-  },
-  "reroll_max": 10,
-  "suppress_days": 30
-}
-Save User Interaction
+```bash
+cd movie-randomizer-frontend
+npm install
+npm run dev
+```
 
-POST /interactions
+App available at `http://localhost:3000`
 
-Example:
+---
 
-{
-  "user_id": "ro-1",
-  "tmdb_movie_id": 9603,
-  "status": "watched"
-}
-Clear Cache (Development Only)
+## API Overview
 
-POST /admin/cache/clear
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/random-movie` | Get a filtered random movie |
+| `POST` | `/for-you` | Get a preference-matched movie |
+| `POST` | `/interactions` | Record a like / skip / watch |
+| `DELETE` | `/interactions/{user_id}/{movie_id}` | Remove from history |
+| `GET` | `/users/{user_id}/history` | Interaction history |
+| `GET` | `/users/{user_id}/preferences` | Learned genre/decade scores |
+| `GET` | `/genres` | All TMDB genre IDs and names |
+| `GET` | `/movies/{id}` | Full metadata for a single movie |
 
-Example Use Cases
-Filtered random movie selection (e.g., horror films from a specific year)
-Only recommending movies currently available on streaming platforms
-Avoiding previously watched or skipped movies
-Supporting different viewing scenarios (short films, high-rated films, etc.)
-Future Enhancements
-Frontend application (web or mobile)
-User authentication and account management
-Persistent caching layer (Redis)
-Recommendation engine based on user behavior
-Analytics tracking (watch time, preferred genres)
-Improved filtering (keywords, mood-based selection)
-Notes
-TMDb API rate limits apply
-Some movies may not have complete metadata (e.g., content rating or providers)
-Caching is used to reduce external API calls and improve performance
-Author
+---
 
-Cameron Bryant
-Chicago-based developer focused on building scalable backend systems and real-world applications.
+## Author
+
+**Cameron Bryant** — Chicago-based developer building real-world full-stack applications.

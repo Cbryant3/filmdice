@@ -1,142 +1,134 @@
-FilmDice — Smart Movie Recommendation API
+# FilmDice — Backend API
 
-FilmDice is a backend service designed to power a full-featured movie recommendation application. The goal of this project is to provide users with intelligent, filter-driven movie suggestions that are immediately actionable (watchable, relevant, and personalized).
+FastAPI backend for FilmDice, a Tinder-style movie discovery app. Wraps the TMDB Discover API with filtering, reroll logic, user interaction tracking, and a preference learning engine.
 
-The API integrates with The Movie Database (TMDb) to retrieve movie data and enhances it with user-specific behavior tracking and filtering logic.
+## Tech Stack
 
-Project Purpose
+- **FastAPI** — async Python web framework
+- **PostgreSQL** — interaction history and preference data
+- **SQLAlchemy** (async) + **asyncpg** — ORM and DB driver
+- **httpx** — shared async HTTP client for TMDB calls
+- **Docker Compose** — local PostgreSQL instance
 
-This project is intended to serve as the backend foundation for a production-ready movie discovery application. It focuses on solving common user problems such as:
+## Setup
 
-Decision fatigue when choosing a movie
-Receiving recommendations that are not currently available to watch
-Repeated suggestions of previously seen content
-Lack of personalization in random recommendations
+### 1. Install dependencies
 
-The system is designed to evolve into a complete application with a frontend interface, user accounts, and advanced recommendation features.
-
-Core Features
-Random Movie Generation
-Generates a random movie using TMDb Discover API
-Supports controlled randomness through filtering and reroll logic
-Advanced Filtering
-Genre inclusion and exclusion
-Year range and decade selection
-Runtime constraints
-Rating and popularity thresholds
-Language and region filtering
-Content rating (MPAA-style) inclusion and exclusion
-Streaming Availability
-Returns where a movie can be watched (subscription, rent, buy)
-Optional enforcement of “must be streaming”
-Movie Metadata
-
-Each response includes:
-
-Title
-Overview
-Poster
-Runtime
-Trailer (YouTube)
-Streaming providers
-Content rating
-User Interaction Tracking
-Tracks watched movies
-Tracks skipped (no-queue) movies
-Tracks dropped movies
-Prevents resurfacing of watched or skipped content
-Suppresses recently suggested movies
-Performance Optimization
-In-memory caching for external API calls
-Reduced redundant TMDb requests
-Configurable reroll attempts
-Technology Stack
-Backend Framework: FastAPI
-Database: PostgreSQL
-ORM: SQLAlchemy (async)
-HTTP Client: httpx
-Containerization: Docker
-External API: The Movie Database (TMDb)
-Project Structure
-app/
-├── main.py              # FastAPI routes and core logic
-├── schemas.py           # Request and response models
-├── tmdb_client.py       # TMDb API integration
-├── db.py                # Database connection setup
-├── models.py            # Database models
-├── config.py            # Environment configuration
-├── cache.py             # In-memory caching layer
-Setup Instructions
-1. Clone the Repository
-git clone <your-repo-url>
-cd movie-randomizer-backend
-2. Create Virtual Environment
+```bash
 python -m venv .venv
-.venv\Scripts\activate
-3. Install Dependencies
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
-4. Configure Environment Variables
+```
 
-Create a .env file in the root directory:
+### 2. Configure environment
 
-TMDB_API_KEY=your_tmdb_api_key
+Create `.env` in this directory:
+
+```env
+TMDB_API_KEY=your_tmdb_api_key_here
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/moviedb
-5. Start Database (Docker)
+```
+
+### 3. Start the database
+
+```bash
 docker compose up -d
-6. Run the API
-python -m uvicorn app.main:app --reload
-7. Access API Documentation
-http://127.0.0.1:8000/docs
-API Endpoints
-Get Random Movie
+```
 
-POST /random-movie
+> To reset all data (required after model changes): `docker compose down -v && docker compose up -d`
 
-Example request:
+### 4. Run the API
 
+```bash
+uvicorn app.main:app --reload
+```
+
+API docs: `http://localhost:8000/docs`
+
+---
+
+## API Reference
+
+### `POST /random-movie`
+Returns a random movie matching the given filters, skipping movies the user has already seen or liked.
+
+```json
 {
-  "user_id": "ro-1",
+  "user_id": "abc123",
   "filters": {
     "genre_ids": [27],
-    "year_min": 2013,
-    "year_max": 2013,
-    "rating_min": 6.0
+    "decades": [1990, 2000],
+    "rating_min": 6.5,
+    "region": "US",
+    "must_be_streaming": true,
+    "content_rating_include": ["PG-13", "R"]
   },
   "reroll_max": 10,
   "suppress_days": 30
 }
-Save User Interaction
+```
 
-POST /interactions
+### `POST /for-you`
+Returns a preference-matched movie ignoring active filters. Returns HTTP 202 if the user has fewer than 5 likes (not enough data).
 
-Example:
+```json
+{ "user_id": "abc123", "reroll_max": 10 }
+```
 
+### `POST /interactions`
+Record a like, watch, skip, or drop.
+
+```json
 {
-  "user_id": "ro-1",
-  "tmdb_movie_id": 9603,
-  "status": "watched"
+  "user_id": "abc123",
+  "tmdb_movie_id": 550,
+  "status": "liked"
 }
-Clear Cache (Development Only)
+```
 
-POST /admin/cache/clear
+### `GET /users/{user_id}/preferences`
+Returns scored genre and decade preferences derived from the user's interaction history.
 
-Example Use Cases
-Filtered random movie selection (e.g., horror films from a specific year)
-Only recommending movies currently available on streaming platforms
-Avoiding previously watched or skipped movies
-Supporting different viewing scenarios (short films, high-rated films, etc.)
-Future Enhancements
-Frontend application (web or mobile)
-User authentication and account management
-Persistent caching layer (Redis)
-Recommendation engine based on user behavior
-Analytics tracking (watch time, preferred genres)
-Improved filtering (keywords, mood-based selection)
-Notes
-TMDb API rate limits apply
-Some movies may not have complete metadata (e.g., content rating or providers)
-Caching is used to reduce external API calls and improve performance
-Author
+### `GET /users/{user_id}/history`
+Returns all interaction records. Add `?status=liked` to filter.
 
-Cameron Bryant
-Chicago-based developer focused on building scalable backend systems and real-world applications.
+### `DELETE /interactions/{user_id}/{movie_id}`
+Removes a movie from history so it can be recommended again.
+
+### `GET /genres`
+Returns all TMDB genre IDs and names.
+
+### `GET /movies/{id}`
+Returns full TMDB metadata for a single movie (used by the watchlist page).
+
+---
+
+## Preference Learning
+
+Every time a movie is surfaced, its `genre_ids` and `release_year` are saved to the interaction row. The scoring function (`services.py`) tallies these into genre and decade scores:
+
+| Interaction | Weight |
+|---|---|
+| Liked | +3.0 |
+| Watched | +1.0 |
+| Dropped | −1.0 |
+| Skipped | −0.5 |
+
+`/for-you` picks the top-scoring genre and decade and builds a targeted Discover query.
+
+---
+
+## Project Structure
+
+```
+app/
+├── main.py          # All routes and endpoint logic
+├── schemas.py       # Pydantic request/response models
+├── models.py        # SQLAlchemy ORM models
+├── services.py      # Preference scoring
+├── tmdb_client.py   # TMDB API client (shared httpx client)
+├── db.py            # Async DB session factory
+├── config.py        # Settings from .env
+└── cache.py         # In-memory response cache
+```
