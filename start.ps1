@@ -107,11 +107,12 @@ Write-OK "Python dependencies up to date"
 Write-Step "Starting PostgreSQL (Docker)..."
 
 Push-Location $backend
-$composeOut = docker compose up -d 2>&1
+docker compose up -d 2>$null
+$composeExit = $LASTEXITCODE
 Pop-Location
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Fail "docker compose failed:`n$composeOut"
+if ($composeExit -ne 0) {
+    Write-Fail "docker compose failed (exit $composeExit). Is Docker Desktop running?"
 }
 Write-OK "PostgreSQL running"
 
