@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useSession } from "next-auth/react"
 import type { Filters, Movie } from "@/lib/types"
 import { fetchRandomMovie, fetchForYou, sendInteraction } from "@/lib/api"
 import { getUserId } from "@/lib/userId"
@@ -12,6 +13,7 @@ import type { SwipeDirection } from "@/hooks/useSwipe"
 type CardState = "idle" | "loading" | "empty" | "error"
 
 export default function DiscoverPage() {
+  const { data: session, status: sessionStatus } = useSession()
   const [movie, setMovie] = useState<Movie | null>(null)
   const [state, setState] = useState<CardState>("loading")
   const [loadCount, setLoadCount] = useState(0)
@@ -23,11 +25,13 @@ export default function DiscoverPage() {
   const swipeCount = useRef<number>(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Wait for session to resolve so we use the real user ID if signed in
   useEffect(() => {
-    userId.current = getUserId()
+    if (sessionStatus === "loading") return
+    userId.current = session?.user?.id ?? getUserId()
     loadNext({})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [sessionStatus])
 
   // Keep a ref in sync so loadNext always has the latest filters without stale closure
   useEffect(() => { filtersRef.current = filters }, [filters])

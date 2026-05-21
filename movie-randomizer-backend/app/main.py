@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from datetime import datetime, timedelta, timezone
 from typing import List
 
@@ -15,7 +16,7 @@ from app.tmdb_client import (
 )
 from app.config import settings
 from app.db import Base, engine, get_db
-from app.models import UserMovieInteraction
+from app.models import UserMovieInteraction, UserPreferenceCache
 from app.schemas import (
     RandomMovieRequest, RandomMovieResponse,
     InteractionUpsert, InteractionRecord,
@@ -77,6 +78,59 @@ def extract_providers(providers_json: dict, region: str) -> dict:
         "rent": region_block.get("rent") or [],
         "buy": region_block.get("buy") or [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Cache helpers
+# ---------------------------------------------------------------------------
+
+async def _get_preference_scores(
+    user_id: str, db: AsyncSession
+) -> tuple[dict[int, float], dict[int, float], int, int]:
+    """
+    Returns (genre_scores, decade_scores, liked_count, total_interactions).
+    Reads from UserPreferenceCache; recomputes and stores if cache is missing.
+    """
+    cache = await db.get(UserPreferenceCache, user_id)
+    if cache is not None:
+        genre_scores = {int(k): float(v) for k, v in (cache.genre_scores or {}).items()}
+        decade_scores = {int(k): float(v) for k, v in (cache.decade_scores or {}).items()}
+        return genre_scores, decade_scores, cache.liked_count, cache.total_interactions
+
+    rows = (await db.execute(
+        select(UserMovieInteraction).where(UserMovieInteraction.user_id == user_id)
+    )).scalars().all()
+
+    genre_scores, decade_scores = compute_preference_scores(list(rows))
+    liked_count = sum(1 for r in rows if r.status == "liked")
+    total_interactions = len(rows)
+
+    await db.execute(
+        pg_insert(UserPreferenceCache).values(
+            user_id=user_id,
+            genre_scores={str(k): v for k, v in genre_scores.items()},
+            decade_scores={str(k): v for k, v in decade_scores.items()},
+            liked_count=liked_count,
+            total_interactions=total_interactions,
+        ).on_conflict_do_update(
+            constraint="user_preference_cache_pkey",
+            set_={
+                "genre_scores": {str(k): v for k, v in genre_scores.items()},
+                "decade_scores": {str(k): v for k, v in decade_scores.items()},
+                "liked_count": liked_count,
+                "total_interactions": total_interactions,
+                "updated_at": func.now(),
+            },
+        )
+    )
+    await db.commit()
+    return genre_scores, decade_scores, liked_count, total_interactions
+
+
+async def _invalidate_preference_cache(user_id: str, db: AsyncSession) -> None:
+    await db.execute(
+        delete(UserPreferenceCache).where(UserPreferenceCache.user_id == user_id)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -292,26 +346,24 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
 
 @app.post("/interactions")
 async def upsert_interaction(payload: InteractionUpsert, db: AsyncSession = Depends(get_db)):
-    q = select(UserMovieInteraction).where(
-        UserMovieInteraction.user_id == payload.user_id,
-        UserMovieInteraction.tmdb_movie_id == payload.tmdb_movie_id,
-    )
-    row = (await db.execute(q)).scalar_one_or_none()
-
-    if row is None:
-        row = UserMovieInteraction(
-            user_id=payload.user_id,
-            tmdb_movie_id=payload.tmdb_movie_id,
-            status="unseen",
-            skip=False,
-        )
-        db.add(row)
-
+    insert_values: dict = {
+        "user_id": payload.user_id,
+        "tmdb_movie_id": payload.tmdb_movie_id,
+        "status": payload.status or "unseen",
+        "skip": payload.skip if payload.skip is not None else False,
+    }
+    update_values: dict = {"updated_at": func.now()}
     if payload.status is not None:
-        row.status = payload.status
+        update_values["status"] = payload.status
     if payload.skip is not None:
-        row.skip = payload.skip
+        update_values["skip"] = payload.skip
 
+    await db.execute(
+        pg_insert(UserMovieInteraction)
+        .values(**insert_values)
+        .on_conflict_do_update(constraint="uq_user_movie", set_=update_values)
+    )
+    await _invalidate_preference_cache(payload.user_id, db)
     await db.commit()
     return {"ok": True}
 
@@ -325,6 +377,7 @@ async def delete_interaction(user_id: str, movie_id: int, db: AsyncSession = Dep
             UserMovieInteraction.tmdb_movie_id == movie_id,
         )
     )
+    await _invalidate_preference_cache(user_id, db)
     await db.commit()
 
 
@@ -345,12 +398,8 @@ async def user_history(
 @app.get("/users/{user_id}/preferences", response_model=UserPreferencesResponse)
 async def user_preferences(user_id: str, db: AsyncSession = Depends(get_db)):
     """Return scored genre and decade preferences built from swipe history."""
-    rows = (await db.execute(
-        select(UserMovieInteraction).where(UserMovieInteraction.user_id == user_id)
-    )).scalars().all()
-
-    genre_scores, decade_scores = compute_preference_scores(list(rows))
-    liked_count = sum(1 for r in rows if r.status == "liked")
+    genre_scores, decade_scores, liked_count, total_interactions = \
+        await _get_preference_scores(user_id, db)
 
     genres_data = await get_genres()
     id_to_name: dict[int, str] = {g["id"]: g["name"] for g in genres_data.get("genres", [])}
@@ -376,25 +425,20 @@ async def user_preferences(user_id: str, db: AsyncSession = Depends(get_db)):
         top_genres=top_genres,
         top_decades=top_decades,
         liked_count=liked_count,
-        total_interactions=len(rows),
+        total_interactions=total_interactions,
     )
 
 
 @app.post("/for-you", response_model=RandomMovieResponse)
 async def for_you(req: ForYouRequest, db: AsyncSession = Depends(get_db)):
     """Return a preference-matched movie, ignoring the user's active filters."""
-    rows = (await db.execute(
-        select(UserMovieInteraction).where(UserMovieInteraction.user_id == req.user_id)
-    )).scalars().all()
-
-    liked_count = sum(1 for r in rows if r.status == "liked")
+    genre_scores, decade_scores, liked_count, _ = \
+        await _get_preference_scores(req.user_id, db)
 
     # Not enough signal yet — tell the frontend to fall back
     if liked_count < 5:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=202, content={"enough_data": False})
-
-    genre_scores, decade_scores = compute_preference_scores(list(rows))
 
     top_genre_id: int | None = max(genre_scores, key=lambda g: genre_scores[g], default=None) \
         if genre_scores else None

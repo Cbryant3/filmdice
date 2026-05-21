@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import Navbar from "@/components/Navbar"
+import ErrorBoundary from "@/components/ErrorBoundary"
+import Providers from "@/components/Providers"
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
 
@@ -14,8 +16,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased dark`}>
       <body className="min-h-full bg-zinc-950 text-white flex flex-col">
-        {children}
-        <Navbar />
+        <Providers>
+          <ErrorBoundary>
+            {children}
+            <Navbar />
+          </ErrorBoundary>
+        </Providers>
       </body>
     </html>
   )

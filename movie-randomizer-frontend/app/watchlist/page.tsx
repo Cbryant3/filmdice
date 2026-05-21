@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import type { InteractionRecord, Movie } from "@/lib/types"
 import { fetchWatchlist, fetchMovieById, deleteInteraction } from "@/lib/api"
 import { getUserId } from "@/lib/userId"
@@ -13,42 +14,46 @@ interface EnrichedItem {
 }
 
 export default function WatchlistPage() {
+  const { data: session, status: sessionStatus } = useSession()
   const [items, setItems] = useState<EnrichedItem[]>([])
   const [pageState, setPageState] = useState<"loading" | "idle" | "empty">("loading")
   const [trailer, setTrailer] = useState<string | null>(null)
 
   useEffect(() => {
-    const uid = getUserId()
+    if (sessionStatus === "loading") return
+    const uid = session?.user?.id ?? getUserId()
+
     fetchWatchlist(uid)
-      .then(async (records) => {
+      .then((records) => {
         if (records.length === 0) { setPageState("empty"); return }
 
-        // Show stubs immediately, then hydrate with movie details
-        const stubs: EnrichedItem[] = records.map(r => ({ record: r, movie: null, loading: true }))
-        setItems(stubs)
+        // Show stubs immediately, then hydrate each card individually as data arrives
+        setItems(records.map(r => ({ record: r, movie: null, loading: true })))
         setPageState("idle")
 
-        records.forEach(async (r, i) => {
-          try {
-            const movie = await fetchMovieById(r.tmdb_movie_id)
-            setItems(prev => prev.map((item, idx) =>
-              idx === i ? { ...item, movie, loading: false } : item
-            ))
-          } catch {
-            setItems(prev => prev.map((item, idx) =>
-              idx === i ? { ...item, loading: false } : item
-            ))
-          }
+        records.forEach((r, i) => {
+          fetchMovieById(r.tmdb_movie_id)
+            .then(movie => {
+              setItems(prev => prev.map((item, idx) =>
+                idx === i ? { ...item, movie, loading: false } : item
+              ))
+            })
+            .catch(() => {
+              setItems(prev => prev.map((item, idx) =>
+                idx === i ? { ...item, loading: false } : item
+              ))
+            })
         })
       })
       .catch(() => setPageState("empty"))
-  }, [])
+  }, [sessionStatus, session])
 
   async function handleRemove(record: InteractionRecord) {
-    const uid = getUserId()
+    const uid = session?.user?.id ?? getUserId()
     await deleteInteraction(uid, record.tmdb_movie_id).catch(console.error)
-    setItems(prev => prev.filter(i => i.record.tmdb_movie_id !== record.tmdb_movie_id))
-    if (items.length === 1) setPageState("empty")
+    const remaining = items.filter(i => i.record.tmdb_movie_id !== record.tmdb_movie_id)
+    setItems(remaining)
+    if (remaining.length === 0) setPageState("empty")
   }
 
   return (
@@ -90,15 +95,18 @@ export default function WatchlistPage() {
                 />
               )}
 
-              {/* Overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-              {/* Info */}
               {movie && (
                 <div className="absolute bottom-0 left-0 right-0 p-2.5 space-y-1.5">
                   <p className="text-white text-xs font-semibold leading-tight line-clamp-2">
                     {movie.title}
                   </p>
+                  {(movie.release_year || movie.runtime) && (
+                    <p className="text-white/50 text-[10px]">
+                      {[movie.release_year, movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m` : null].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
                   <div className="flex gap-1.5">
                     {movie.trailer_url && (
                       <button

@@ -3,6 +3,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.db import Base
 
+
+class UserPreferenceCache(Base):
+    """Cached genre/decade scores per user. Invalidated on every interaction write."""
+    __tablename__ = "user_preference_cache"
+
+    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    genre_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    decade_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    liked_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_interactions: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class UserMovieInteraction(Base):
     __tablename__ = "user_movie_interactions"
 
