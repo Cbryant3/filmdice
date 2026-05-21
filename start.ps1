@@ -107,7 +107,7 @@ Write-OK "Python dependencies up to date"
 Write-Step "Starting PostgreSQL (Docker)..."
 
 Push-Location $backend
-docker compose up -d 2>$null
+try { docker compose up -d *>$null } catch { }
 $composeExit = $LASTEXITCODE
 Pop-Location
 
