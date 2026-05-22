@@ -149,6 +149,34 @@ if ($Network) {
         $Network = $false
     } else {
         Write-OK "Local network IP: $localIP"
+
+        # Patch NEXT_PUBLIC_API_URL directly in .env.local so Next.js picks it up
+        $envLocal = Join-Path $frontend ".env.local"
+        if (Test-Path $envLocal) {
+            $lines = Get-Content $envLocal
+            $found = $false
+            $lines = $lines | ForEach-Object {
+                if ($_ -match "^NEXT_PUBLIC_API_URL=") { $found = $true; "NEXT_PUBLIC_API_URL=http://${localIP}:8000" }
+                else { $_ }
+            }
+            if (-not $found) { $lines += "NEXT_PUBLIC_API_URL=http://${localIP}:8000" }
+            $lines | Set-Content $envLocal -Encoding utf8
+            Write-OK "Set NEXT_PUBLIC_API_URL=http://${localIP}:8000 in .env.local"
+        }
+    }
+}
+
+
+# Restore .env.local to localhost when not in network mode
+if (-not $Network) {
+    $envLocal = Join-Path $frontend ".env.local"
+    if (Test-Path $envLocal) {
+        $lines = Get-Content $envLocal
+        $lines = $lines | ForEach-Object {
+            if ($_ -match "^NEXT_PUBLIC_API_URL=") { "NEXT_PUBLIC_API_URL=http://localhost:8000" }
+            else { $_ }
+        }
+        $lines | Set-Content $envLocal -Encoding utf8
     }
 }
 
