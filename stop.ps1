@@ -73,6 +73,15 @@ try {
 }
 
 
+# ---------------------------------------------------------------------------
+# Close FilmDice terminal windows (keep this one open)
+# ---------------------------------------------------------------------------
+Start-Sleep -Milliseconds 500
+Get-Process powershell -ErrorAction SilentlyContinue |
+    Where-Object { $_.MainWindowTitle -match "FilmDice (Backend|Frontend)" } |
+    ForEach-Object { $_.CloseMainWindow() | Out-Null }
+
+
 Write-Host ""
 Write-Host "  ===========================================" -ForegroundColor Green
 Write-Host "   FilmDice stopped." -ForegroundColor Green
