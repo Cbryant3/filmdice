@@ -31,7 +31,7 @@ if ($uvicornProcs) {
     $wmiProcs = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
         Where-Object { $_.CommandLine -like "*uvicorn*" }
     if ($wmiProcs) {
-        $wmiProcs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+        $wmiProcs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         Write-OK "uvicorn stopped"
     } else {
         Write-Warn "uvicorn process not found (may already be stopped)"
@@ -49,7 +49,7 @@ $nextProcs = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
 
 if ($nextProcs) {
     $nextProcs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    Write-OK "Next.js stopped ($($nextProcs.Count) process(es))"
+    Write-OK "Next.js stopped ($(@($nextProcs).Count) process(es))"
 } else {
     Write-Warn "Next.js process not found (may already be stopped)"
 }
