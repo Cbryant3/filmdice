@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local config (copy next.config.example.ts → next.config.ts to set up)
+next.config.ts

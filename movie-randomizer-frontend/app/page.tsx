@@ -27,11 +27,20 @@ export default function DiscoverPage() {
   const prefetchedMovie = useRef<Movie | null>(null)
   const prefetching = useRef(false)
 
-  // Wait for session to resolve so we use the real user ID if signed in
+  // Start loading immediately with guest ID; upgrade to session ID when auth resolves
+  useEffect(() => {
+    userId.current = getUserId()
+    loadNext({})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (sessionStatus === "loading") return
-    userId.current = session?.user?.id ?? getUserId()
-    loadNext({})
+    const resolvedId = session?.user?.id ?? getUserId()
+    if (resolvedId !== userId.current) {
+      userId.current = resolvedId
+      loadNext({})
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStatus])
 
@@ -131,7 +140,7 @@ export default function DiscoverPage() {
   ).length
 
   return (
-    <main className="min-h-screen bg-zinc-950 flex flex-col">
+    <main className="h-dvh bg-zinc-950 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="flex items-center justify-between px-5 pt-6 pb-2">
         <h1 className="text-white text-2xl font-black tracking-tight">
@@ -157,7 +166,7 @@ export default function DiscoverPage() {
 
       {/* Card area */}
       <div className="flex-1 flex items-start justify-center px-5 pt-10 pb-24 lg:items-center lg:pt-0">
-        <div className="relative w-full max-w-sm h-[520px] lg:max-w-4xl lg:h-auto">
+        <div className="relative w-full max-w-sm h-[min(440px,58svh)] lg:max-w-4xl lg:h-auto">
           {state === "loading" && (
             <div className="absolute inset-0 rounded-2xl bg-zinc-800/50 flex items-center justify-center lg:rounded-2xl">
               <DiceLoader key={loadCount} />

@@ -163,6 +163,15 @@ if ($Network) {
             $lines | Set-Content $envLocal -Encoding utf8
             Write-OK "Set NEXT_PUBLIC_API_URL=http://${localIP}:8000 in .env.local"
         }
+
+        # Patch allowedDevOrigins in next.config.ts so Next.js allows the phone's IP
+        $nextConfig = Join-Path $frontend "next.config.ts"
+        if (Test-Path $nextConfig) {
+            $cfg = Get-Content $nextConfig -Raw
+            $cfg = $cfg -replace 'allowedDevOrigins:\s*\[[^\]]*\]', "allowedDevOrigins: [`"${localIP}`"]"
+            $cfg | Set-Content $nextConfig -Encoding utf8
+            Write-OK "Set allowedDevOrigins=${localIP} in next.config.ts"
+        }
     }
 }
 
