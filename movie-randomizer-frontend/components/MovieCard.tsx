@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { Movie, Provider } from "@/lib/types"
 import { logoUrl } from "@/lib/api"
 import TrailerModal from "./TrailerModal"
+import MovieDetailModal from "./MovieDetailModal"
 import { useSwipe, type SwipeDirection } from "@/hooks/useSwipe"
 
 interface Props {
@@ -41,9 +42,10 @@ function ProviderRow({ label, providers, link }: { label: string; providers: Pro
 
 export default function MovieCard({ movie, onSwipe }: Props) {
   const [showTrailer, setShowTrailer] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
 
   const { style, likeIndicator, nopeIndicator, watchedIndicator, triggerSwipe, handlers } =
-    useSwipe((dir) => onSwipe(dir, movie))
+    useSwipe((dir) => onSwipe(dir, movie), () => setShowDetail(true))
 
   const flatrate = movie.where_to_watch?.flatrate ?? []
   const rent     = movie.where_to_watch?.rent     ?? []
@@ -279,6 +281,10 @@ export default function MovieCard({ movie, onSwipe }: Props) {
 
       {showTrailer && movie.trailer_url && (
         <TrailerModal trailerUrl={movie.trailer_url} onClose={() => setShowTrailer(false)} />
+      )}
+
+      {showDetail && (
+        <MovieDetailModal movie={movie} onClose={() => setShowDetail(false)} />
       )}
     </>
   )

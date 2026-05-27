@@ -13,7 +13,7 @@ interface DragState {
   isDragging: boolean
 }
 
-export function useSwipe(onSwipe: (dir: SwipeDirection) => void) {
+export function useSwipe(onSwipe: (dir: SwipeDirection) => void, onTap?: () => void) {
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [flying, setFlying] = useState<SwipeDirection | null>(null)
   const drag = useRef<DragState>({ startX: 0, startY: 0, isDragging: false })
@@ -54,9 +54,10 @@ export function useSwipe(onSwipe: (dir: SwipeDirection) => void) {
         onSwipe(dir)
       }, 350)
     } else {
+      if (Math.abs(x) < 10 && Math.abs(y) < 10) onTap?.()
       setOffset({ x: 0, y: 0 })
     }
-  }, [offset, onSwipe])
+  }, [offset, onSwipe, onTap])
 
   const rotation = offset.x * ROT_FACTOR
   const opacity = flying
