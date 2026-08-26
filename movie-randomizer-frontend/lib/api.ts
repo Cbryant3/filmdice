@@ -1,8 +1,14 @@
 import type { Filters, Genre, InteractionRecord, Movie, UserPreferences } from "./types"
 
 const BASE = (() => {
+  // In production, always use the deployed backend URL from the environment.
+  // Set NEXT_PUBLIC_API_URL to your backend's public HTTPS address
+  // (e.g. https://filmdice-api.up.railway.app) in your host's env settings.
   const env = process.env.NEXT_PUBLIC_API_URL
-  if (env && !env.includes("localhost")) return env
+  if (env) return env.replace(/\/$/, "") // trim any trailing slash
+
+  // Local development fallback only. If you open the dev site from a phone
+  // on your LAN, this points at the backend on the same host, port 8000.
   if (typeof window !== "undefined") return `http://${window.location.hostname}:8000`
   return "http://localhost:8000"
 })()
