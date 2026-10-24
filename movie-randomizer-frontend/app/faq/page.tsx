@@ -154,10 +154,13 @@ export default function FaqPage() {
             actually watching. Rolling the dice on one movie at a time makes deciding quick, and
             learning your taste makes the rolls better over time.
           </p>
+          <p>
+            <Link href="/about" className="text-indigo-400 hover:text-indigo-300">More about Cameron, plus resume →</Link>
+          </p>
         </QA>
         <QA q="When was it built?">
           <p>
-            Development started in February 2026. It began as a local app and was moved to the cloud
+            Development started in January 2026. It began as a local app and was moved to the cloud
             so anyone can use it, and it&apos;s still being improved.
           </p>
         </QA>

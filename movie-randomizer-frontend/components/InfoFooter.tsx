@@ -22,6 +22,7 @@ export default function InfoFooter() {
 
       <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <Link href="/faq" className="text-indigo-400 hover:text-indigo-300">FAQ</Link>
+        <Link href="/about" className="text-indigo-400 hover:text-indigo-300">About me</Link>
         <Link href="/privacy" className="text-indigo-400 hover:text-indigo-300">Privacy Policy</Link>
         <Link href="/privacy#your-data" className="text-indigo-400 hover:text-indigo-300">Delete my data</Link>
         <Link href="/faq#credits" className="text-indigo-400 hover:text-indigo-300">Credits</Link>
