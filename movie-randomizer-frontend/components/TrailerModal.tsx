@@ -9,7 +9,7 @@ interface Props {
 
 function youtubeEmbedUrl(url: string): string {
   const match = url.match(/[?&]v=([^&]+)/)
-  if (match) return `https://www.youtube.com/embed/${match[1]}?autoplay=1`
+  if (match) return `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1`
   return url
 }
 

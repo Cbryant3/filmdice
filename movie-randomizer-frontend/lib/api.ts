@@ -103,6 +103,12 @@ export async function fetchForYou(userId: string, region?: string, rerollMax = 1
   return res.json() as Promise<Movie>
 }
 
+/** Permanently delete all swipe history and taste data stored for this user ID. */
+export async function deleteUserData(userId: string): Promise<void> {
+  const res = await fetch(`${BASE}/users/${encodeURIComponent(userId)}`, { method: "DELETE" })
+  if (!res.ok && res.status !== 404) throw new Error(`${res.status} ${res.statusText}`)
+}
+
 export async function fetchUserPreferences(userId: string): Promise<UserPreferences> {
   return req<UserPreferences>(`/users/${userId}/preferences`)
 }

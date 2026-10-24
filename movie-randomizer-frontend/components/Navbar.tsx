@@ -33,6 +33,17 @@ export default function Navbar() {
         <span>Liked</span>
       </Link>
 
+      <Link
+        href="/faq"
+        className={clsx(
+          "flex flex-col items-center gap-0.5 text-xs font-medium transition-colors",
+          path === "/faq" || path === "/privacy" ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300",
+        )}
+      >
+        <span className="text-xl">ⓘ</span>
+        <span>Info</span>
+      </Link>
+
       {session ? (
         <button
           onClick={() => signOut()}

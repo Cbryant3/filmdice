@@ -15,7 +15,7 @@ from app.tmdb_client import (
     poster_url, startup as tmdb_startup, shutdown as tmdb_shutdown,
 )
 from app.config import settings
-from app.db import Base, engine, get_db
+from app.db import Base, engine, get_db, AsyncSessionLocal
 from app.models import UserMovieInteraction, UserPreferenceCache
 from app.schemas import (
     RandomMovieRequest, RandomMovieResponse,
@@ -25,12 +25,80 @@ from app.schemas import (
 from app.services import compute_preference_scores
 
 
+import logging
+
+log = logging.getLogger("filmdice")
+
+# Users with no activity for this long have their data deleted automatically.
+# Keep in sync with the retention period stated on the frontend /privacy page.
+INACTIVE_RETENTION_DAYS = 365
+PURGE_INTERVAL_SECONDS = 24 * 60 * 60
+
+
+async def _delete_user_data(user_ids: list[str], db: AsyncSession) -> None:
+    """Remove every stored row for the given user IDs."""
+    if not user_ids:
+        return
+    await db.execute(
+        delete(UserMovieInteraction).where(UserMovieInteraction.user_id.in_(user_ids))
+    )
+    await db.execute(
+        delete(UserPreferenceCache).where(UserPreferenceCache.user_id.in_(user_ids))
+    )
+
+
+async def purge_inactive_users() -> int:
+    """Delete data for users whose most recent activity is older than the retention window."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=INACTIVE_RETENTION_DAYS)
+    last_activity = func.max(
+        func.greatest(
+            UserMovieInteraction.updated_at,
+            func.coalesce(UserMovieInteraction.last_surfaced_at, UserMovieInteraction.updated_at),
+        )
+    )
+    async with AsyncSessionLocal() as db:
+        inactive = (await db.execute(
+            select(UserMovieInteraction.user_id)
+            .group_by(UserMovieInteraction.user_id)
+            .having(last_activity < cutoff)
+        )).scalars().all()
+
+        # Delete in batches to keep each statement's IN-list small.
+        for i in range(0, len(inactive), 500):
+            await _delete_user_data(list(inactive[i:i + 500]), db)
+
+        # Preference caches left behind with no interactions at all.
+        await db.execute(
+            delete(UserPreferenceCache).where(
+                UserPreferenceCache.updated_at < cutoff,
+                UserPreferenceCache.user_id.not_in(select(UserMovieInteraction.user_id)),
+            )
+        )
+        await db.commit()
+    return len(inactive)
+
+
+async def _purge_loop() -> None:
+    while True:
+        try:
+            n = await purge_inactive_users()
+            if n:
+                log.info("Purged data for %d inactive user(s)", n)
+        except Exception:
+            log.exception("Inactive-user purge failed")
+        await asyncio.sleep(PURGE_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await tmdb_startup()
+    # Runs once at startup (free hosting sleeps when idle, so this also covers
+    # wake-ups) and then every 24 hours while the server stays up.
+    purge_task = asyncio.create_task(_purge_loop())
     yield
+    purge_task.cancel()
     await tmdb_shutdown()
 
 
@@ -379,6 +447,13 @@ async def delete_interaction(user_id: str, movie_id: int, db: AsyncSession = Dep
         )
     )
     await _invalidate_preference_cache(user_id, db)
+    await db.commit()
+
+
+@app.delete("/users/{user_id}", status_code=204)
+async def delete_user(user_id: str, db: AsyncSession = Depends(get_db)):
+    """Permanently delete all swipe history and taste data stored for a user."""
+    await _delete_user_data([user_id], db)
     await db.commit()
 
 
