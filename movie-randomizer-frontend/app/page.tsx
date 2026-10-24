@@ -12,6 +12,24 @@ import type { SwipeDirection } from "@/hooks/useSwipe"
 
 type CardState = "idle" | "loading" | "empty" | "error"
 
+// Stable comparison key for filters: ignores unset values, empty lists and
+// false toggles, and sorts keys/arrays so toggling something on and back off
+// counts as "no change".
+function filtersKey(f: Filters): string {
+  const clean: Record<string, unknown> = {}
+  for (const k of Object.keys(f).sort()) {
+    const v = (f as Record<string, unknown>)[k]
+    if (v === undefined || v === null || v === false || v === "") continue
+    if (Array.isArray(v)) {
+      if (v.length === 0) continue
+      clean[k] = [...v].sort()
+    } else {
+      clean[k] = v
+    }
+  }
+  return JSON.stringify(clean)
+}
+
 export default function DiscoverPage() {
   const { data: session, status: sessionStatus } = useSession()
   const [movie, setMovie] = useState<Movie | null>(null)
@@ -26,6 +44,7 @@ export default function DiscoverPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchedMovie = useRef<Movie | null>(null)
   const prefetching = useRef(false)
+  const filtersAtOpen = useRef<Filters>({})
 
   // Start loading immediately with guest ID; upgrade to session ID when auth resolves
   useEffect(() => {
@@ -124,8 +143,18 @@ export default function DiscoverPage() {
     filtersRef.current = f
   }
 
+  function openFilters() {
+    filtersAtOpen.current = filtersRef.current
+    setFiltersOpen(true)
+  }
+
   function handleApplyFilters() {
     setFiltersOpen(false)
+    const changed = filtersKey(filtersAtOpen.current) !== filtersKey(filtersRef.current)
+    // Nothing changed and a film is on screen: keep it instead of rerolling.
+    if (!changed && state === "idle" && movie) return
+    // Filters changed, so any prefetched film was picked under the old filters.
+    if (changed) prefetchedMovie.current = null
     loadNext(filtersRef.current)
   }
 
@@ -154,7 +183,7 @@ export default function DiscoverPage() {
           )}
         </div>
         <button
-          onClick={() => setFiltersOpen(true)}
+          onClick={openFilters}
           className="flex items-center gap-2 text-sm font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-full transition-colors"
         >
           <span>⚙</span> Filters
@@ -179,7 +208,7 @@ export default function DiscoverPage() {
               <p className="text-white font-semibold text-lg">No movies found</p>
               <p className="text-zinc-400 text-sm">Try adjusting your filters</p>
               <button
-                onClick={() => setFiltersOpen(true)}
+                onClick={openFilters}
                 className="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-full text-sm font-medium transition-colors"
               >
                 Open Filters
