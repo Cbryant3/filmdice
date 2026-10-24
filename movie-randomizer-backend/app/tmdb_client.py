@@ -6,6 +6,9 @@ IMG_BASE  = "https://image.tmdb.org/t/p/w500"
 
 _client: httpx.AsyncClient | None = None
 
+# Calls made to TMDB since the server started (shown on the public stats page).
+call_count = 0
+
 
 def _build_client() -> httpx.AsyncClient:
     headers = {"accept": "application/json"}
@@ -30,6 +33,8 @@ async def shutdown() -> None:
 
 
 def _http() -> httpx.AsyncClient:
+    global call_count
+    call_count += 1
     if _client is None:
         raise RuntimeError("TMDB client not initialized — call tmdb_client.startup() first")
     return _client

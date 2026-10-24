@@ -53,6 +53,14 @@ export default function PrivacyPage() {
             <li>Each movie&apos;s genres and release year, used to build your taste profile.</li>
             <li>Your taste profile: scores for the genres and decades you seem to enjoy.</li>
           </ul>
+          <p><strong>Anonymous usage counts:</strong></p>
+          <ul>
+            <li>
+              Daily totals such as how many movies were rolled, how many likes, skips, and trailer plays
+              happened, how many new users arrived, and which filter types were used. These counts
+              contain no user IDs and can&apos;t be traced back to anyone.
+            </li>
+          </ul>
           <p>
             Your filter settings aren&apos;t saved on the server. They&apos;re sent along with each roll and
             reset when you close the app.
@@ -69,8 +77,14 @@ export default function PrivacyPage() {
             <li>to pick the ⭐ For You movies that match your taste.</li>
           </ul>
           <p>
-            FilmDice does not sell your data, show ads, use analytics or tracking tools, or use your
-            data for anything else.
+            FilmDice also publishes anonymous, combined statistics on its{" "}
+            <a href="/stats">Stats page</a> (for example total users, total swipes, and the most-liked
+            genres). No individual&apos;s activity is ever shown, and a movie only appears in the
+            &ldquo;most-liked&rdquo; list once at least two people have liked it.
+          </p>
+          <p>
+            FilmDice does not sell your data, show ads, use third-party analytics or tracking tools,
+            or use your data for anything else.
           </p>
         </Prose>
       </Section>
@@ -111,7 +125,8 @@ export default function PrivacyPage() {
           <p>
             Your swipe history and taste profile are kept while you use FilmDice. If an ID has no
             activity for {retentionText}, everything stored for it is deleted automatically. You can also
-            delete it yourself at any time (below).
+            delete it yourself at any time (below). The anonymous daily counts are kept, since they
+            aren&apos;t linked to anyone.
           </p>
         </Prose>
       </Section>

@@ -67,6 +67,10 @@ class InteractionUpsert(BaseModel):
     tmdb_movie_id: int
     status: Optional[Literal["unseen", "watched", "liked", "dropped"]] = None
     skip: Optional[bool] = None
+    # Where the interaction came from, for anonymous stats only:
+    # "swipe" (regular card) or "for_you" (personalized card). Omitted for
+    # non-swipe updates such as edits from the watchlist.
+    context: Optional[Literal["swipe", "for_you"]] = None
 
 
 class InteractionRecord(BaseModel):

@@ -69,11 +69,34 @@ export async function sendInteraction(
   movieId: number,
   status?: "unseen" | "watched" | "liked" | "dropped",
   skip?: boolean,
+  context?: "swipe" | "for_you",
 ): Promise<void> {
   await req("/interactions", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, tmdb_movie_id: movieId, status, skip }),
+    body: JSON.stringify({ user_id: userId, tmdb_movie_id: movieId, status, skip, context }),
   })
+}
+
+/** Anonymous engagement counter for the public stats page. Fire-and-forget. */
+export function trackEvent(name: "trailer_play" | "watch_link"): void {
+  fetch(`${BASE}/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+    keepalive: true,
+  }).catch(() => { /* stats are best-effort */ })
+}
+
+export async function fetchStats(): Promise<import("./types").PublicStats> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 75_000) // allow for a cold start
+  try {
+    const res = await fetch(`${BASE}/stats`, { signal: controller.signal })
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    return res.json()
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function deleteInteraction(userId: string, movieId: number): Promise<void> {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { trackEvent } from "@/lib/api"
 
 interface Props {
   trailerUrl: string
@@ -14,6 +15,9 @@ function youtubeEmbedUrl(url: string): string {
 }
 
 export default function TrailerModal({ trailerUrl, onClose }: Props) {
+  // Count each trailer opened (anonymous, for the public stats page).
+  useEffect(() => { trackEvent("trailer_play") }, [trailerUrl])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
     window.addEventListener("keydown", handler)

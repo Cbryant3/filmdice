@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import InfoPage, { Section, Prose } from "@/components/InfoPage"
 import { CREATOR } from "@/lib/site"
 import {
@@ -30,6 +31,9 @@ export default function AboutPage() {
           </a>
           <ResumeDownload />
         </div>
+        <Link href="/stats" className="mt-4 inline-block text-indigo-400 hover:text-indigo-300 text-sm">
+          📊 See FilmDice&apos;s live usage stats →
+        </Link>
       </section>
 
       <Section title="Hi, I'm Cameron">

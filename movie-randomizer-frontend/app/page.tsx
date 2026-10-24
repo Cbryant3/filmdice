@@ -123,14 +123,15 @@ export default function DiscoverPage() {
   }, [loadNext, prefetchNext])
 
   const handleSwipe = useCallback(async (dir: SwipeDirection, swiped: Movie) => {
+    const context = swiped.is_for_you ? "for_you" : "swipe"
     if (dir === "right") {
       showToast("Added to liked ♥")
-      await sendInteraction(userId.current, swiped.id, "liked").catch(console.error)
+      await sendInteraction(userId.current, swiped.id, "liked", undefined, context).catch(console.error)
     } else if (dir === "up") {
       showToast("Marked as watched 👁")
-      await sendInteraction(userId.current, swiped.id, "watched").catch(console.error)
+      await sendInteraction(userId.current, swiped.id, "watched", undefined, context).catch(console.error)
     } else {
-      await sendInteraction(userId.current, swiped.id, undefined, true).catch(console.error)
+      await sendInteraction(userId.current, swiped.id, undefined, true, context).catch(console.error)
     }
     swipeCount.current += 1
 

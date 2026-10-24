@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { Movie, Provider } from "@/lib/types"
-import { logoUrl } from "@/lib/api"
+import { logoUrl, trackEvent } from "@/lib/api"
 import TrailerModal from "./TrailerModal"
 import MovieDetailModal from "./MovieDetailModal"
 import { useSwipe, type SwipeDirection } from "@/hooks/useSwipe"
@@ -24,7 +24,7 @@ function ProviderRow({ label, providers, link }: { label: string; providers: Pro
           return (
             <Wrapper
               key={p.provider_id}
-              {...(link ? { href: link, target: "_blank", rel: "noopener noreferrer" } : {})}
+              {...(link ? { href: link, target: "_blank", rel: "noopener noreferrer", onClick: () => trackEvent("watch_link") } : {})}
               className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg px-2 py-1 transition-colors cursor-pointer group"
             >
               {url && (
@@ -140,7 +140,7 @@ export default function MovieCard({ movie, onSwipe }: Props) {
                   const jwLink = movie.where_to_watch?.link
                   return jwLink ? (
                     <a key={p.provider_id} href={jwLink} target="_blank" rel="noopener noreferrer"
-                      onPointerDown={e => e.stopPropagation()}>
+                      onPointerDown={e => e.stopPropagation()} onClick={() => trackEvent("watch_link")}>
                       <img src={url} alt={p.provider_name} title={p.provider_name}
                         className="w-7 h-7 rounded-md object-cover hover:ring-2 hover:ring-white/50 transition-all" />
                     </a>

@@ -1,4 +1,5 @@
-from sqlalchemy import String, Integer, Boolean, DateTime, UniqueConstraint, Index, JSON
+from datetime import date
+from sqlalchemy import String, Integer, BigInteger, Boolean, Date, DateTime, UniqueConstraint, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.db import Base
@@ -46,3 +47,15 @@ class UserMovieInteraction(Base):
         UniqueConstraint("user_id", "tmdb_movie_id", name="uq_user_movie"),
         Index("ix_user_movie_tmdb", "tmdb_movie_id"),
     )
+
+class DailyMetric(Base):
+    """Anonymous per-day counters for the public stats page.
+
+    Holds no user IDs, so it survives the inactive-user purge and "Delete my
+    data", and is safe to publish in aggregate.
+    """
+    __tablename__ = "daily_metrics"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    metric: Mapped[str] = mapped_column(String(48), primary_key=True)
+    count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)

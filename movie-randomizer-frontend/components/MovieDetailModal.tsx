@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { Movie, Provider } from "@/lib/types"
-import { logoUrl } from "@/lib/api"
+import { logoUrl, trackEvent } from "@/lib/api"
 import TrailerModal from "./TrailerModal"
 
 interface Props {
@@ -22,7 +22,7 @@ function ProviderRow({ label, providers, link }: { label: string; providers: Pro
           return (
             <Wrapper
               key={p.provider_id}
-              {...(link ? { href: link, target: "_blank", rel: "noopener noreferrer" } : {})}
+              {...(link ? { href: link, target: "_blank", rel: "noopener noreferrer", onClick: () => trackEvent("watch_link") } : {})}
               className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg px-2 py-1 transition-colors"
             >
               {url && <img src={url} alt={p.provider_name} className="w-5 h-5 rounded object-cover" />}

@@ -23,6 +23,9 @@ from app.schemas import (
     ForYouRequest, UserPreferencesResponse, GenreScore, DecadeScore,
 )
 from app.services import compute_preference_scores
+from app import metrics
+from pydantic import BaseModel
+import time
 
 
 import logging
@@ -103,6 +106,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="FilmDice API", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def time_requests(request, call_next):
+    start = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        metrics.record_request(request.url.path, status, (time.perf_counter() - start) * 1000)
 
 app.add_middleware(
     CORSMiddleware,
@@ -271,6 +286,12 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
     region = f.region or "US"
     rating_region = f.content_rating_region or region
 
+    # Anonymous stats: count the request and which filters it used.
+    roll_counts = {"roll_requests": 1, **metrics.filter_counts(f)}
+    is_new_user = (await db.execute(
+        select(UserMovieInteraction.id).where(UserMovieInteraction.user_id == req.user_id).limit(1)
+    )).first() is None
+
     # Build discover params
     discover_params: dict = {
         "include_adult": "false",
@@ -316,12 +337,14 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
     first = await discover_movies(discover_params)
     total_pages = min(int(first.get("total_pages") or 0), 500)
     if total_pages <= 0:
+        await metrics.bump(db, {**roll_counts, "no_results": 1})
+        await db.commit()
         raise HTTPException(status_code=404, detail="No movies found for those filters.")
 
     suppress_since = datetime.now(timezone.utc) - timedelta(days=req.suppress_days)
     watched_suppress_since = datetime.now(timezone.utc) - timedelta(days=90)
 
-    for _ in range(req.reroll_max):
+    for attempt in range(req.reroll_max):
         page = random.randint(1, total_pages)
         discover_params["page"] = page
 
@@ -394,6 +417,10 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
                 genre_ids=raw_genre_ids or None,
                 release_year=raw_release_year,
             ))
+        await metrics.bump(db, {
+            **roll_counts, "rolls": 1, "reroll_attempts": attempt + 1,
+            "new_users": 1 if is_new_user else 0,
+        })
         await db.commit()
 
         return RandomMovieResponse(
@@ -410,6 +437,8 @@ async def random_movie(req: RandomMovieRequest, db: AsyncSession = Depends(get_d
             genre_ids=raw_genre_ids or None,
         )
 
+    await metrics.bump(db, {**roll_counts, "no_results": 1})
+    await db.commit()
     raise HTTPException(status_code=404, detail="Could not find a movie after rerolls.")
 
 
@@ -433,6 +462,7 @@ async def upsert_interaction(payload: InteractionUpsert, db: AsyncSession = Depe
         .on_conflict_do_update(constraint="uq_user_movie", set_=update_values)
     )
     await _invalidate_preference_cache(payload.user_id, db)
+    await metrics.bump(db, metrics.swipe_counts(payload.status, payload.skip, payload.context))
     await db.commit()
     return {"ok": True}
 
@@ -448,6 +478,24 @@ async def delete_interaction(user_id: str, movie_id: int, db: AsyncSession = Dep
     )
     await _invalidate_preference_cache(user_id, db)
     await db.commit()
+
+
+class ClientEvent(BaseModel):
+    name: str
+
+
+@app.post("/events", status_code=204)
+async def client_event(event: ClientEvent, db: AsyncSession = Depends(get_db)):
+    """Anonymous engagement counters reported by the frontend (e.g. trailer plays)."""
+    if event.name in metrics.CLIENT_EVENTS:
+        await metrics.bump(db, {event.name: 1})
+        await db.commit()
+
+
+@app.get("/stats")
+async def public_stats(db: AsyncSession = Depends(get_db)):
+    """Public, anonymous usage and health numbers for the /stats page."""
+    return await metrics.cached_stats(db)
 
 
 @app.delete("/users/{user_id}", status_code=204)
@@ -598,6 +646,7 @@ async def for_you(req: ForYouRequest, db: AsyncSession = Depends(get_db)):
                 genre_ids=raw_genre_ids or None,
                 release_year=raw_release_year,
             ))
+        await metrics.bump(db, {"for_you_shown": 1})
         await db.commit()
 
         return RandomMovieResponse(
