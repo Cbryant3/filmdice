@@ -70,10 +70,20 @@ export default function DiscoverPage() {
     if (prefetching.current) return
     prefetching.current = true
     try {
-      const m = await fetchRandomMovie(userId.current, filtersRef.current)
-      prefetchedMovie.current = m
-    } catch {
-      prefetchedMovie.current = null
+      // Remember which filter set each fetch was made under. If the filters
+      // change while it's in flight, the result is stale: discard it and
+      // fetch again under the new filters.
+      let key: string
+      do {
+        key = filtersKey(filtersRef.current)
+        let m: Movie | null = null
+        try {
+          m = await fetchRandomMovie(userId.current, filtersRef.current)
+        } catch {
+          m = null
+        }
+        prefetchedMovie.current = key === filtersKey(filtersRef.current) ? m : null
+      } while (key !== filtersKey(filtersRef.current))
     } finally {
       prefetching.current = false
     }
@@ -148,14 +158,25 @@ export default function DiscoverPage() {
     setFiltersOpen(true)
   }
 
+  // Closing the panel never replaces the film on screen. New filters take
+  // effect on the next roll and stay until changed, reset, or the app closes.
   function handleApplyFilters() {
     setFiltersOpen(false)
     const changed = filtersKey(filtersAtOpen.current) !== filtersKey(filtersRef.current)
-    // Nothing changed and a film is on screen: keep it instead of rerolling.
-    if (!changed && state === "idle" && movie) return
-    // Filters changed, so any prefetched film was picked under the old filters.
-    if (changed) prefetchedMovie.current = null
-    loadNext(filtersRef.current)
+
+    // No film on screen (empty/error/first load): roll now with current filters.
+    if (!(state === "idle" && movie)) {
+      prefetchedMovie.current = null
+      loadNext(filtersRef.current)
+      return
+    }
+
+    if (changed) {
+      // The queued-up next film was picked under the old filters; swap it for
+      // one that matches the new filters so the next roll honors them.
+      prefetchedMovie.current = null
+      prefetchNext()
+    }
   }
 
   function showToast(msg: string) {
