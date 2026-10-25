@@ -54,22 +54,11 @@ export default function DiscoverPage() {
   const prefetching = useRef(false)
   const filtersAtOpen = useRef<Filters>({})
 
-  // Start loading immediately with guest ID; upgrade to session ID when auth resolves
-  useEffect(() => {
-    userId.current = getUserId()
-    loadNext({})
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const showToast = useCallback((msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToastMsg(msg)
+    toastTimer.current = setTimeout(() => setToastMsg(null), 2000)
   }, [])
-
-  useEffect(() => {
-    if (sessionStatus === "loading") return
-    const resolvedId = session?.user?.id ?? getUserId()
-    if (resolvedId !== userId.current) {
-      userId.current = resolvedId
-      loadNext({})
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionStatus])
 
   // Keep a ref in sync so loadNext always has the latest filters without stale closure
   useEffect(() => { filtersRef.current = filters }, [filters])
@@ -130,6 +119,26 @@ export default function DiscoverPage() {
     }
   }, [loadNext, prefetchNext])
 
+  // Start loading immediately with guest ID; upgrade to session ID when auth resolves
+  // (Loads are scheduled rather than run inline so the effect body itself
+  // doesn't set state; the cleanup also cancels React's dev-mode double run.)
+  useEffect(() => {
+    userId.current = getUserId()
+    const t = setTimeout(() => loadNext({}), 0)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (sessionStatus === "loading") return
+    const resolvedId = session?.user?.id ?? getUserId()
+    if (resolvedId === userId.current) return
+    userId.current = resolvedId
+    const t = setTimeout(() => loadNext({}), 0)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus])
+
   const handleSwipe = useCallback(async (dir: SwipeDirection, swiped: Movie) => {
     const context = swiped.is_for_you ? "for_you" : "swipe"
     if (dir === "right") {
@@ -165,7 +174,7 @@ export default function DiscoverPage() {
     } else {
       loadNext()
     }
-  }, [loadNext, loadForYou, prefetchNext])
+  }, [loadNext, loadForYou, prefetchNext, showToast])
 
   const handleUndo = useCallback(async () => {
     const last = history.current[history.current.length - 1]
@@ -187,7 +196,7 @@ export default function DiscoverPage() {
     } finally {
       undoing.current = false
     }
-  }, [movie])
+  }, [movie, showToast])
 
   function handleFiltersChange(f: Filters) {
     setFilters(f)
@@ -227,11 +236,6 @@ export default function DiscoverPage() {
     return () => { clearTimeout(t); setSlowLoad(false) }
   }, [state, loadCount])
 
-  function showToast(msg: string) {
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    setToastMsg(msg)
-    toastTimer.current = setTimeout(() => setToastMsg(null), 2000)
-  }
 
   const activeFilterCount = Object.entries(filters).filter(
     ([, v]) => v !== undefined && v !== false && !(Array.isArray(v) && v.length === 0)

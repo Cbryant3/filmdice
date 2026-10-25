@@ -219,3 +219,26 @@ App: `http://localhost:3000`
 | `GET` | `/users/{user_id}/preferences` | Learned genre/decade scores |
 | `GET` | `/genres` | All TMDB genre IDs and names |
 | `GET` | `/movies/{id}` | Full metadata for a single movie |
+
+---
+
+## Testing
+
+Every push runs the full test suite on GitHub Actions (`.github/workflows/ci.yml`).
+
+**Backend** (`movie-randomizer-backend/tests`, pytest): 48 tests against a real PostgreSQL database, with TMDB replaced by an in-memory fake. Covers rolling and filters, repeat suppression, swipes and lists, undo, For You, Delete my data, the one-year cleanup, the public stats, CORS rules, and rate limits.
+
+```bash
+cd movie-randomizer-backend
+pip install -r requirements-dev.txt
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/filmdice_test python -m pytest
+```
+
+**Frontend** (`movie-randomizer-frontend/e2e`, Playwright): 39 browser tests, each run at phone and desktop size, against a production build with the backend mocked. Covers swiping and gestures, undo, filters, cold-start / error / rate-limit screens, Liked and Watched with details, info pages, Delete my data, the stats page, and no sideways scrolling.
+
+```bash
+cd movie-randomizer-frontend
+npm run typecheck && npm run lint
+npx playwright install chromium
+npm run test:e2e
+```

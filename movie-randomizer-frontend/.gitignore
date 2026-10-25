@@ -42,3 +42,8 @@ next-env.d.ts
 
 # local config (copy next.config.example.ts → next.config.ts to set up)
 next.config.ts
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

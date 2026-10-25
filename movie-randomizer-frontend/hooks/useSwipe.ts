@@ -16,10 +16,14 @@ interface DragState {
 export function useSwipe(onSwipe: (dir: SwipeDirection) => void, onTap?: () => void) {
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [flying, setFlying] = useState<SwipeDirection | null>(null)
+  // Drag start point lives in a ref (only read in event handlers); whether a
+  // drag is in progress is state, because rendering depends on it.
   const drag = useRef<DragState>({ startX: 0, startY: 0, isDragging: false })
+  const [isDragging, setIsDragging] = useState(false)
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     drag.current = { startX: e.clientX, startY: e.clientY, isDragging: true }
+    setIsDragging(true)
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
   }, [])
 
@@ -34,6 +38,7 @@ export function useSwipe(onSwipe: (dir: SwipeDirection) => void, onTap?: () => v
   const onPointerUp = useCallback(() => {
     if (!drag.current.isDragging) return
     drag.current.isDragging = false
+    setIsDragging(false)
 
     const { x, y } = offset
     const isUpDominant = Math.abs(y) > Math.abs(x) && y < -SWIPE_THRESHOLD
@@ -71,10 +76,10 @@ export function useSwipe(onSwipe: (dir: SwipeDirection) => void, onTap?: () => v
         : `translateX(${flying === "right" ? "120vw" : "-120vw"}) rotate(${flying === "right" ? 30 : -30}deg)`
       : `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg)`,
     opacity,
-    transition: flying || (!drag.current.isDragging && offset.x === 0 && offset.y === 0)
+    transition: flying || (!isDragging && offset.x === 0 && offset.y === 0)
       ? "transform 0.35s ease, opacity 0.35s ease"
       : "none",
-    cursor: drag.current.isDragging ? "grabbing" : "grab",
+    cursor: isDragging ? "grabbing" : "grab",
     userSelect: "none",
   }
 

@@ -1,6 +1,5 @@
 "use client"
 
-import { useRef } from "react"
 
 interface Props {
   min: number
@@ -14,15 +13,13 @@ interface Props {
 export default function RangeSlider({
   min, max, step = 0.5, value, onChange, formatLabel,
 }: Props) {
-  const trackRef = useRef<HTMLDivElement>(null)
-
   function snapToStep(raw: number) {
     const decimals = step < 1 ? (String(step).split(".")[1]?.length ?? 0) : 0
     return parseFloat((Math.round(raw / step) * step).toFixed(decimals))
   }
 
-  function valueFromClientX(clientX: number): number {
-    const track = trackRef.current
+  // The handles sit directly inside the track, so the track is the handle's parent.
+  function valueFromClientX(clientX: number, track: HTMLElement | null): number {
     if (!track) return min
     const { left, width } = track.getBoundingClientRect()
     const ratio = Math.max(0, Math.min(1, (clientX - left) / width))
@@ -37,7 +34,7 @@ export default function RangeSlider({
       },
       onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
         if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-        const next = valueFromClientX(e.clientX)
+        const next = valueFromClientX(e.clientX, e.currentTarget.parentElement)
         if (handle === "low") {
           onChange([Math.min(next, value[1] - step), value[1]])
         } else {
@@ -68,7 +65,7 @@ export default function RangeSlider({
       </div>
 
       {/* Track */}
-      <div ref={trackRef} className="relative h-1.5 rounded-full bg-zinc-700 mx-2.5">
+      <div className="relative h-1.5 rounded-full bg-zinc-700 mx-2.5">
         {/* Active fill */}
         <div
           className="absolute h-full rounded-full bg-amber-500 transition-none"
