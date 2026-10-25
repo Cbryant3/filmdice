@@ -16,7 +16,7 @@ import time
 from collections import Counter, deque
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select, distinct, case
+from sqlalchemy import func, select, distinct, case, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,6 +61,23 @@ async def bump(db: AsyncSession, counts: dict[str, int]) -> None:
         await db.execute(stmt)
 
 
+async def unbump(db: AsyncSession, counts: dict[str, int]) -> None:
+    """Subtract from today's counters (never below zero, never creates rows).
+
+    Used by undo. If the original swipe was counted on an earlier day, today's
+    numbers are left alone.
+    """
+    today = _today()
+    for metric, n in counts.items():
+        if not n:
+            continue
+        await db.execute(
+            update(DailyMetric)
+            .where(DailyMetric.day == today, DailyMetric.metric == metric)
+            .values(count=func.greatest(DailyMetric.count - n, 0))
+        )
+
+
 def filter_counts(filters) -> dict[str, int]:
     used = {f"filter_{name}": 1 for name, test in FILTER_FIELDS.items() if test(filters)}
     if used:
@@ -79,6 +96,11 @@ def swipe_counts(status: str | None, skip: bool | None, context: str | None) -> 
         kind = "skip"
     else:
         return {}
+    return swipe_counts_for(kind, context)
+
+
+def swipe_counts_for(kind: str, context: str | None) -> dict[str, int]:
+    """Counter names for one swipe of `kind` ("like" | "skip" | "watched")."""
     counts = {f"swipe_{kind}": 1}
     if context == "for_you":
         counts[f"for_you_{kind}"] = 1
@@ -287,6 +309,7 @@ async def compute_stats(db: AsyncSession) -> dict:
             "avg_rerolls_per_pick": round(t("reroll_attempts") / t("rolls"), 2) if t("rolls") else None,
         },
         "engagement": {
+            "undos": t("undo"),
             "trailer_plays": t("trailer_play"),
             "watch_link_taps": t("watch_link"),
         },

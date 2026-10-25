@@ -51,6 +51,11 @@ export default function AboutPage() {
             with its own recommendation engine.
           </p>
           <p>
+            I also build with modern AI tools. FilmDice was developed with <strong>Claude</strong> as a
+            coding partner, while I own the product decisions, review every change, and ship it.{" "}
+            <Link href="/faq" className="text-indigo-400 hover:text-indigo-300">How AI was used →</Link>
+          </p>
+          <p>
             I&apos;m open to opportunities in <strong>software development</strong>,{" "}
             <strong>data analytics</strong>, and <strong>IT</strong>.
           </p>

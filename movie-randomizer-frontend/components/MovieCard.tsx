@@ -10,6 +10,25 @@ import { useSwipe, type SwipeDirection } from "@/hooks/useSwipe"
 interface Props {
   movie: Movie
   onSwipe: (dir: SwipeDirection, movie: Movie) => void
+  onUndo?: () => void
+  canUndo?: boolean
+}
+
+function UndoButton({ onUndo, disabled, size }: { onUndo?: () => void; disabled: boolean; size: "sm" | "lg" }) {
+  const dims = size === "lg" ? "w-11 h-11 text-xl" : "w-10 h-10 text-lg"
+  return (
+    <button
+      type="button"
+      onPointerDown={e => e.stopPropagation()}
+      onClick={e => { e.stopPropagation(); onUndo?.() }}
+      disabled={disabled}
+      title="Undo last swipe"
+      aria-label="Undo last swipe"
+      className={`${dims} self-center rounded-full bg-zinc-800 border-2 border-amber-400 text-amber-400 flex items-center justify-center transition-colors shadow-lg hover:bg-amber-400 hover:text-zinc-900 disabled:opacity-30 disabled:border-zinc-600 disabled:text-zinc-500 disabled:hover:bg-zinc-800 disabled:cursor-not-allowed`}
+    >
+      ↶
+    </button>
+  )
 }
 
 function ProviderRow({ label, providers, link }: { label: string; providers: Provider[]; link: string | null }) {
@@ -40,7 +59,7 @@ function ProviderRow({ label, providers, link }: { label: string; providers: Pro
   )
 }
 
-export default function MovieCard({ movie, onSwipe }: Props) {
+export default function MovieCard({ movie, onSwipe, onUndo, canUndo = false }: Props) {
   const [showTrailer, setShowTrailer] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
 
@@ -225,6 +244,7 @@ export default function MovieCard({ movie, onSwipe }: Props) {
             ) : <div />}
 
             <div className="flex gap-3">
+              <UndoButton onUndo={onUndo} disabled={!canUndo} size="sm" />
               <button
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => { e.stopPropagation(); triggerSwipe("left") }}
@@ -255,7 +275,8 @@ export default function MovieCard({ movie, onSwipe }: Props) {
       </div>
 
       {/* ── Mobile-only swipe buttons (below card) ── */}
-      <div className="lg:hidden absolute -bottom-16 left-0 right-0 flex justify-center gap-6">
+      <div className="lg:hidden absolute -bottom-16 left-0 right-0 flex justify-center gap-5">
+        <UndoButton onUndo={onUndo} disabled={!canUndo} size="lg" />
         <button
           onClick={() => triggerSwipe("left")}
           className="w-14 h-14 rounded-full bg-zinc-800 border-2 border-red-500 text-red-500 text-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors shadow-lg"

@@ -6,6 +6,7 @@ import type { InteractionRecord, Movie } from "@/lib/types"
 import { fetchWatchlist, fetchWatched, fetchMovieById, deleteInteraction } from "@/lib/api"
 import { getUserId } from "@/lib/userId"
 import TrailerModal from "@/components/TrailerModal"
+import MovieDetailModal from "@/components/MovieDetailModal"
 
 interface EnrichedItem {
   record: InteractionRecord
@@ -22,6 +23,7 @@ export default function WatchlistPage() {
   const [watchedItems, setWatchedItems] = useState<EnrichedItem[]>([])
   const [pageState, setPageState] = useState<"loading" | "idle" | "empty">("loading")
   const [trailer, setTrailer] = useState<string | null>(null)
+  const [detail, setDetail] = useState<Movie | null>(null)
 
   useEffect(() => {
     if (sessionStatus === "loading") return
@@ -77,6 +79,7 @@ export default function WatchlistPage() {
   return (
     <main className="min-h-screen bg-zinc-950 pb-24">
       <header className="px-5 pt-6 pb-4 border-b border-zinc-800">
+        <div className="max-w-6xl mx-auto lg:px-4">
         <h1 className="text-white text-2xl font-black tracking-tight">
           Film<span className="text-indigo-400">Dice</span>
         </h1>
@@ -101,6 +104,7 @@ export default function WatchlistPage() {
           >
             Watched {watchedItems.length > 0 && `(${watchedItems.length})`}
           </button>
+        </div>
         </div>
       </header>
 
@@ -131,7 +135,7 @@ export default function WatchlistPage() {
       )}
 
       {pageState === "idle" && activeItems.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 max-w-6xl mx-auto">
           {activeItems.map(({ record, movie, loading }) => (
             <div key={record.tmdb_movie_id} className="relative rounded-xl overflow-hidden bg-zinc-800 aspect-[2/3]">
               {loading && (
@@ -146,10 +150,20 @@ export default function WatchlistPage() {
                 />
               )}
 
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+
+              {/* Whole poster opens the details view (overview, trailer, where to watch) */}
+              {movie && (
+                <button
+                  type="button"
+                  onClick={() => setDetail(movie)}
+                  aria-label={`Details for ${movie.title}`}
+                  className="absolute inset-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-xl transition-colors hover:bg-white/5"
+                />
+              )}
 
               {movie && (
-                <div className="absolute bottom-0 left-0 right-0 p-2.5 space-y-1.5">
+                <div className="absolute bottom-0 left-0 right-0 p-2.5 space-y-1.5 pointer-events-none">
                   <p className="text-white text-xs font-semibold leading-tight line-clamp-2">
                     {movie.title}
                   </p>
@@ -158,7 +172,13 @@ export default function WatchlistPage() {
                       {[movie.release_year, movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m` : null].filter(Boolean).join(" · ")}
                     </p>
                   )}
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 pointer-events-auto">
+                    <button
+                      onClick={() => setDetail(movie)}
+                      className="text-[10px] bg-indigo-500/80 hover:bg-indigo-500 text-white px-2 py-0.5 rounded-full transition-colors"
+                    >
+                      Details
+                    </button>
                     {movie.trailer_url && (
                       <button
                         onClick={() => setTrailer(movie.trailer_url!)}
@@ -183,6 +203,10 @@ export default function WatchlistPage() {
 
       {trailer && (
         <TrailerModal trailerUrl={trailer} onClose={() => setTrailer(null)} />
+      )}
+
+      {detail && (
+        <MovieDetailModal movie={detail} onClose={() => setDetail(null)} />
       )}
     </main>
   )

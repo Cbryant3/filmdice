@@ -73,6 +73,14 @@ class InteractionUpsert(BaseModel):
     context: Optional[Literal["swipe", "for_you"]] = None
 
 
+class InteractionUndo(BaseModel):
+    user_id: str = Field(..., max_length=128)
+    tmdb_movie_id: int
+    # What the swipe being undone was, so the stats can be corrected.
+    kind: Literal["like", "skip", "watched"]
+    context: Optional[Literal["swipe", "for_you"]] = None
+
+
 class InteractionRecord(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

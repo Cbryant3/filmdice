@@ -123,6 +123,19 @@ export async function fetchStats(): Promise<import("./types").PublicStats> {
   }
 }
 
+/** Undo a swipe: the movie goes back to "shown but not swiped". */
+export async function undoInteraction(
+  userId: string,
+  movieId: number,
+  kind: "like" | "skip" | "watched",
+  context: "swipe" | "for_you",
+): Promise<void> {
+  await req("/interactions/undo", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, tmdb_movie_id: movieId, kind, context }),
+  })
+}
+
 export async function deleteInteraction(userId: string, movieId: number): Promise<void> {
   await req(`/interactions/${userId}/${movieId}`, { method: "DELETE" })
 }

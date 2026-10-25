@@ -62,6 +62,14 @@ export default function InfoFooter() {
             </a>{" "}
             through TMDB. Trailers play from YouTube.
           </p>
+          <p>
+            Built with help from{" "}
+            <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300">
+              Claude
+            </a>
+            , an AI assistant made by Anthropic, used throughout FilmDice&apos;s design, coding, and
+            deployment. FilmDice isn&apos;t affiliated with or endorsed by Anthropic.
+          </p>
         </div>
       </section>
     </footer>

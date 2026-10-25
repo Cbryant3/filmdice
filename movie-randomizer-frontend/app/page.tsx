@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
 import type { Filters, Movie } from "@/lib/types"
-import { fetchRandomMovie, fetchForYou, sendInteraction } from "@/lib/api"
+import { fetchRandomMovie, fetchForYou, sendInteraction, undoInteraction } from "@/lib/api"
 import { getUserId } from "@/lib/userId"
 import MovieCard from "@/components/MovieCard"
 import FilterPanel from "@/components/FilterPanel"
@@ -45,6 +45,12 @@ export default function DiscoverPage() {
   const swipeCount = useRef<number>(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchedMovie = useRef<Movie | null>(null)
+  // Swipes that can be undone (most recent last), and films put back in line
+  // by an undo, which are shown again before any new roll.
+  const history = useRef<{ movie: Movie; dir: SwipeDirection }[]>([])
+  const upNext = useRef<Movie[]>([])
+  const [canUndo, setCanUndo] = useState(false)
+  const undoing = useRef(false)
   const prefetching = useRef(false)
   const filtersAtOpen = useRef<Filters>({})
 
@@ -136,6 +142,16 @@ export default function DiscoverPage() {
       await sendInteraction(userId.current, swiped.id, undefined, true, context).catch(console.error)
     }
     swipeCount.current += 1
+    history.current = [...history.current.slice(-19), { movie: swiped, dir }]
+    setCanUndo(true)
+
+    // A film put back by undo comes first.
+    const queued = upNext.current.pop()
+    if (queued) {
+      setMovie(queued)
+      setState("idle")
+      return
+    }
 
     const pre = prefetchedMovie.current
     prefetchedMovie.current = null
@@ -150,6 +166,28 @@ export default function DiscoverPage() {
       loadNext()
     }
   }, [loadNext, loadForYou, prefetchNext])
+
+  const handleUndo = useCallback(async () => {
+    const last = history.current[history.current.length - 1]
+    if (!last || undoing.current) return
+    undoing.current = true
+    try {
+      const kind = last.dir === "right" ? "like" : last.dir === "up" ? "watched" : "skip"
+      await undoInteraction(userId.current, last.movie.id, kind, last.movie.is_for_you ? "for_you" : "swipe")
+      history.current = history.current.slice(0, -1)
+      setCanUndo(history.current.length > 0)
+      swipeCount.current = Math.max(0, swipeCount.current - 1)
+      // Keep the film that was on screen: it's shown again after this one.
+      if (movie) upNext.current.push(movie)
+      setMovie(last.movie)
+      setState("idle")
+      showToast(kind === "like" ? "Removed from liked ↶" : kind === "watched" ? "Unmarked as watched ↶" : "Brought it back ↶")
+    } catch {
+      showToast("Couldn't undo. Try again.")
+    } finally {
+      undoing.current = false
+    }
+  }, [movie])
 
   function handleFiltersChange(f: Filters) {
     setFilters(f)
@@ -286,7 +324,7 @@ export default function DiscoverPage() {
           )}
 
           {state === "idle" && movie && (
-            <MovieCard movie={movie} onSwipe={handleSwipe} />
+            <MovieCard key={movie.id} movie={movie} onSwipe={handleSwipe} onUndo={handleUndo} canUndo={canUndo} />
           )}
         </div>
       </div>

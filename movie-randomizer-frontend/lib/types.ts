@@ -91,7 +91,7 @@ export interface PublicStats {
   swipes: { movies_served: number; total: number; likes: number; skips: number; watched: number; like_rate: number | null }
   for_you: { shown: number; swipes: number; likes: number; like_rate: number | null; random_like_rate: number | null }
   engine: { roll_requests: number; no_results_rate: number | null; avg_rerolls_per_pick: number | null }
-  engagement: { trailer_plays: number; watch_link_taps: number }
+  engagement: { undos?: number; trailer_plays: number; watch_link_taps: number }
   filters: { rolls_with_filters_rate: number | null; usage: { filter: string; rolls: number }[] }
   taste: {
     top_genres: { genre: string; likes: number }[]

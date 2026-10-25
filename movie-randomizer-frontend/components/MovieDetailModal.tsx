@@ -62,23 +62,24 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
         onClick={onClose}
       >
         <div
-          className="bg-zinc-900 w-full max-w-lg max-h-[85vh] rounded-t-2xl sm:rounded-2xl overflow-y-auto flex flex-col"
+          className="bg-zinc-900 w-full max-w-lg max-h-[85vh] rounded-t-2xl overflow-y-auto flex flex-col sm:max-w-3xl sm:rounded-2xl sm:flex-row sm:overflow-hidden"
           onClick={e => e.stopPropagation()}
         >
           {/* Poster */}
-          <div className="relative w-full shrink-0" style={{ aspectRatio: "2/3", maxHeight: "45vw" }}>
+          {/* Phones: poster banner on top. Tablets/desktop: poster column on the left. */}
+          <div className="relative w-full shrink-0 aspect-[2/3] max-h-[45vw] sm:max-h-none sm:w-64 sm:aspect-auto">
             {movie.poster_url ? (
               <img
                 src={movie.poster_url}
                 alt={movie.title}
-                className="w-full h-full object-cover rounded-t-2xl sm:rounded-t-2xl"
+                className="w-full h-full object-cover rounded-t-2xl sm:rounded-none sm:rounded-l-2xl"
               />
             ) : (
-              <div className="w-full h-full bg-zinc-800 rounded-t-2xl flex items-center justify-center">
+              <div className="w-full h-full bg-zinc-800 rounded-t-2xl sm:rounded-none sm:rounded-l-2xl flex items-center justify-center">
                 <span className="text-zinc-500 text-sm">No poster</span>
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent rounded-t-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent rounded-t-2xl sm:hidden" />
             <button
               onClick={onClose}
               className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white/80 hover:text-white flex items-center justify-center text-sm"
@@ -88,7 +89,7 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
           </div>
 
           {/* Details */}
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 sm:flex-1 sm:overflow-y-auto sm:p-6 sm:max-h-[85vh]">
             {/* Title + meta */}
             <div className="space-y-1">
               <div className="flex items-start justify-between gap-3">

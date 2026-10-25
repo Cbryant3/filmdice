@@ -166,6 +166,7 @@ export default function StatsDashboard() {
           <Tile label="Rolls using filters" value={pct(s.filters.rolls_with_filters_rate)} />
           <Tile label="Trailer plays" value={num(s.engagement.trailer_plays)} />
           <Tile label="“Where to watch” taps" value={num(s.engagement.watch_link_taps)} />
+          <Tile label="Swipes undone" value={num(s.engagement.undos ?? 0)} />
         </Tiles>
         <HBarList
           title="Filters used (rolls)"

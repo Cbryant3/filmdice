@@ -25,7 +25,14 @@ export default function FaqPage() {
             <li><strong className="text-zinc-200">Swipe left (✕)</strong> to skip it.</li>
             <li><strong className="text-zinc-200">Swipe up (👁)</strong> if you&apos;ve already seen it.</li>
           </ul>
-          <p>On a computer, or if you prefer tapping, use the buttons under the card instead.</p>
+          <p>On a computer, or if you prefer tapping, use the buttons under the card instead. Tap the card itself to see full details.</p>
+        </QA>
+        <QA q="I swiped by accident. Can I undo it?">
+          <p>
+            Yes. Tap the <strong className="text-zinc-200">↶</strong> button next to the swipe buttons to bring back
+            the last movie. Your swipe is erased, and the movie you were looking at comes back up next. You can
+            undo several swipes in a row.
+          </p>
         </QA>
         <QA q="How do filters work?">
           <p>
@@ -47,7 +54,8 @@ export default function FaqPage() {
         <QA q="Where are the movies I liked?">
           <p>
             Open the <strong className="text-zinc-200">Liked</strong> tab at the bottom of the screen. It has
-            separate lists for movies you liked and movies you&apos;ve watched, and you can remove any of them.
+            separate lists for movies you liked and movies you&apos;ve watched. Tap any movie to see its overview,
+            trailer, and where to watch it, or remove it from the list.
           </p>
         </QA>
         <QA q="Where can I watch a movie I found?">
@@ -179,9 +187,21 @@ export default function FaqPage() {
         </QA>
         <QA q="Was AI used to build it?">
           <p>
-            Yes. FilmDice was built with the help of AI coding assistants, including Claude. They were used
-            to plan features, write and review code, track down bugs, and prepare the app for cloud
-            deployment, with every change directed, tested, and shipped by {CREATOR.name}.
+            Yes. FilmDice was built with{" "}
+            <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300">Claude</a>,
+            Anthropic&apos;s AI assistant, as a development partner, including Claude Code inside the code
+            editor. Claude helped plan features, write and review code, track down bugs, and move the app
+            from a local setup to the cloud.
+          </p>
+          <p>
+            Features built this way include the swipe filters, the privacy tools (Delete my data and
+            automatic cleanup), the public{" "}
+            <Link href="/stats" className="text-indigo-400 hover:text-indigo-300">Stats page</Link>, API
+            security hardening, cold-start handling, and undo.
+          </p>
+          <p>
+            {CREATOR.name} decides what gets built, reviews each change on a preview build, and ships it.
+            Working this way made it possible to go from idea to a deployed, tested app quickly.
           </p>
         </QA>
         <QA q="What's next?">

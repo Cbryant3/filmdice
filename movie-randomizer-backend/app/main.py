@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, update, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from datetime import datetime, timedelta, timezone
 from typing import List
@@ -19,7 +19,7 @@ from app.db import Base, engine, get_db, AsyncSessionLocal
 from app.models import UserMovieInteraction, UserPreferenceCache
 from app.schemas import (
     RandomMovieRequest, RandomMovieResponse,
-    InteractionUpsert, InteractionRecord,
+    InteractionUpsert, InteractionRecord, InteractionUndo,
     ForYouRequest, UserPreferencesResponse, GenreScore, DecadeScore,
 )
 from app.services import compute_preference_scores
@@ -260,15 +260,18 @@ async def movie_detail(movie_id: int):
     where_to_watch = extract_providers(providers_json, region)
     content_rating = extract_certification(release_dates_json, region)
 
+    release_date = data.get("release_date") or ""
     return RandomMovieResponse(
         id=int(data["id"]),
         title=data.get("title") or "Unknown title",
         overview=data.get("overview"),
         poster_url=poster_url(data.get("poster_path")),
         runtime=data.get("runtime"),
+        release_year=int(release_date[:4]) if release_date[:4].isdigit() else None,
         trailer_url=trailer_url,
         where_to_watch=where_to_watch,
         content_rating=content_rating,
+        genre_ids=[g["id"] for g in data.get("genres") or []] or None,
     )
 
 
@@ -458,6 +461,25 @@ async def upsert_interaction(payload: InteractionUpsert, db: AsyncSession = Depe
     await metrics.bump(db, metrics.swipe_counts(payload.status, payload.skip, payload.context))
     await db.commit()
     return {"ok": True}
+
+
+@app.post("/interactions/undo")
+async def undo_interaction(payload: InteractionUndo, db: AsyncSession = Depends(get_db)):
+    """Undo the last swipe on a movie: back to 'shown but not swiped'."""
+    result = await db.execute(
+        update(UserMovieInteraction)
+        .where(
+            UserMovieInteraction.user_id == payload.user_id,
+            UserMovieInteraction.tmdb_movie_id == payload.tmdb_movie_id,
+        )
+        .values(status="unseen", skip=False, updated_at=func.now())
+    )
+    if result.rowcount:
+        await _invalidate_preference_cache(payload.user_id, db)
+        await metrics.unbump(db, metrics.swipe_counts_for(payload.kind, payload.context))
+        await metrics.bump(db, {"undo": 1})
+    await db.commit()
+    return {"ok": True, "undone": bool(result.rowcount)}
 
 
 @app.delete("/interactions/{user_id}/{movie_id}", status_code=204)
