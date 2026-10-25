@@ -13,7 +13,31 @@ const BASE = (() => {
   return "http://localhost:8000"
 })()
 
+// The backend sleeps on free hosting and can take up to a minute to wake.
+// Every request first waits (once per page load) for /health to answer, with
+// a long timeout, so the first roll doesn't time out during a cold start.
+let awake: Promise<void> | null = null
+
+export function ensureAwake(): Promise<void> {
+  if (!awake) {
+    awake = (async () => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 90_000)
+      try {
+        const res = await fetch(`${BASE}/health`, { signal: controller.signal })
+        if (!res.ok) throw new Error(String(res.status))
+      } catch {
+        awake = null // let the next request try waking it again
+      } finally {
+        clearTimeout(timer)
+      }
+    })()
+  }
+  return awake
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  await ensureAwake()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15_000)
   let res: Response
@@ -24,7 +48,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
     })
   } catch (err) {
-    if ((err as Error).name === "AbortError") throw new Error("Request timed out - is the backend running?")
+    if ((err as Error).name === "AbortError") throw new Error("Request timed out")
     throw err
   } finally {
     clearTimeout(timer)
@@ -104,6 +128,7 @@ export async function deleteInteraction(userId: string, movieId: number): Promis
 }
 
 export async function fetchForYou(userId: string, region?: string, rerollMax = 10): Promise<Movie | null> {
+  await ensureAwake()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15_000)
   let res: Response
@@ -115,7 +140,7 @@ export async function fetchForYou(userId: string, region?: string, rerollMax = 1
       signal: controller.signal,
     })
   } catch (err) {
-    if ((err as Error).name === "AbortError") throw new Error("Request timed out - is the backend running?")
+    if ((err as Error).name === "AbortError") throw new Error("Request timed out")
     throw err
   } finally {
     clearTimeout(timer)
@@ -128,6 +153,7 @@ export async function fetchForYou(userId: string, region?: string, rerollMax = 1
 
 /** Permanently delete all swipe history and taste data stored for this user ID. */
 export async function deleteUserData(userId: string): Promise<void> {
+  await ensureAwake()
   const res = await fetch(`${BASE}/users/${encodeURIComponent(userId)}`, { method: "DELETE" })
   if (!res.ok && res.status !== 404) throw new Error(`${res.status} ${res.statusText}`)
 }

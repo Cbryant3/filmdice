@@ -10,7 +10,7 @@ import FilterPanel from "@/components/FilterPanel"
 import DiceLoader from "@/components/DiceLoader"
 import type { SwipeDirection } from "@/hooks/useSwipe"
 
-type CardState = "idle" | "loading" | "empty" | "error"
+type CardState = "idle" | "loading" | "empty" | "error" | "limited"
 
 // Stable comparison key for filters: ignores unset values, empty lists and
 // false toggles, and sorts keys/arrays so toggling something on and back off
@@ -38,6 +38,8 @@ export default function DiscoverPage() {
   const [filters, setFilters] = useState<Filters>({})
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
+  // True once a load has taken long enough that the server is probably waking up.
+  const [slowLoad, setSlowLoad] = useState(false)
   const userId = useRef<string>("")
   const filtersRef = useRef<Filters>({})
   const swipeCount = useRef<number>(0)
@@ -100,7 +102,7 @@ export default function DiscoverPage() {
       prefetchNext()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      setState(msg.includes("404") ? "empty" : "error")
+      setState(msg.includes("404") ? "empty" : msg.includes("429") ? "limited" : "error")
     }
   }, [prefetchNext])
 
@@ -180,6 +182,13 @@ export default function DiscoverPage() {
     }
   }
 
+  // After 5s of loading, explain the wait instead of leaving a silent spinner.
+  useEffect(() => {
+    if (state !== "loading") return
+    const t = setTimeout(() => setSlowLoad(true), 5000)
+    return () => { clearTimeout(t); setSlowLoad(false) }
+  }, [state, loadCount])
+
   function showToast(msg: string) {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToastMsg(msg)
@@ -219,8 +228,16 @@ export default function DiscoverPage() {
       <div className="flex-1 flex items-start justify-center px-5 pt-10 pb-24 lg:items-center lg:pt-0">
         <div className="relative w-full max-w-sm h-[min(440px,58svh)] lg:max-w-4xl lg:h-auto">
           {state === "loading" && (
-            <div className="absolute inset-0 rounded-2xl bg-zinc-800/50 flex items-center justify-center lg:rounded-2xl">
+            <div className="absolute inset-0 rounded-2xl bg-zinc-800/50 flex flex-col items-center justify-center gap-6 px-8 text-center lg:rounded-2xl">
               <DiceLoader key={loadCount} />
+              {slowLoad && (
+                <div aria-live="polite">
+                  <p className="text-zinc-200 text-sm font-medium">Waking up the server…</p>
+                  <p className="text-zinc-400 text-xs mt-1">
+                    FilmDice naps when it&apos;s quiet. The first roll can take up to a minute. After that it&apos;s quick.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -241,8 +258,24 @@ export default function DiscoverPage() {
           {state === "error" && (
             <div className="absolute inset-0 rounded-2xl bg-zinc-800 flex flex-col items-center justify-center gap-4 text-center px-6">
               <div className="text-5xl">⚠️</div>
-              <p className="text-white font-semibold">Something went wrong</p>
-              <p className="text-zinc-400 text-sm">Make sure the backend is running</p>
+              <p className="text-white font-semibold">Couldn&apos;t roll a movie</p>
+              <p className="text-zinc-400 text-sm">
+                Check your connection and try again. If it keeps happening, the server may be restarting. Give it a minute.
+              </p>
+              <button
+                onClick={() => loadNext()}
+                className="bg-zinc-700 hover:bg-zinc-600 text-white px-6 py-2 rounded-full text-sm font-medium transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {state === "limited" && (
+            <div className="absolute inset-0 rounded-2xl bg-zinc-800 flex flex-col items-center justify-center gap-4 text-center px-6">
+              <div className="text-5xl">🎲</div>
+              <p className="text-white font-semibold">Whoa, slow down!</p>
+              <p className="text-zinc-400 text-sm">You&apos;re rolling faster than the dice can keep up. Wait a few seconds and try again.</p>
               <button
                 onClick={() => loadNext()}
                 className="bg-zinc-700 hover:bg-zinc-600 text-white px-6 py-2 rounded-full text-sm font-medium transition-colors"

@@ -23,7 +23,7 @@ from app.schemas import (
     ForYouRequest, UserPreferencesResponse, GenreScore, DecadeScore,
 )
 from app.services import compute_preference_scores
-from app import metrics
+from app import metrics, ratelimit
 from pydantic import BaseModel
 import time
 
@@ -108,6 +108,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="FilmDice API", version="0.1.0", lifespan=lifespan)
 
 
+# Middleware order: the last one added runs first. Rate limiting is added
+# first so it runs inside CORS, letting browsers read a 429 response.
+@app.middleware("http")
+async def rate_limit(request, call_next):
+    blocked = ratelimit.check(request)
+    if blocked is not None:
+        return blocked
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def time_requests(request, call_next):
     start = time.perf_counter()
@@ -122,8 +132,9 @@ async def time_requests(request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origin_regex=settings.allowed_origin_regex or None,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -228,24 +239,6 @@ def root():
 @app.get("/health")
 def health():
     return {"ok": True}
-
-
-@app.get("/debug-key")
-def debug_key():
-    if not settings.tmdb_api_key:
-        return {"has_key": False}
-    return {"has_key": True, "len": len(settings.tmdb_api_key)}
-
-
-@app.get("/tmdb-test")
-async def tmdb_test():
-    data = await get_movie(603)  # The Matrix
-    return {
-        "id": data["id"],
-        "title": data.get("title"),
-        "overview": data.get("overview"),
-        "poster_url": poster_url(data.get("poster_path")),
-    }
 
 
 @app.get("/genres")

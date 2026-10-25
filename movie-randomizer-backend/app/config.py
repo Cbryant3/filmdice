@@ -5,10 +5,16 @@ class Settings(BaseSettings):
     tmdb_api_key: str
     tmdb_auth_mode: str = "v4"  # "v3" or "v4"
     database_url: str
-    # Comma-separated list of allowed frontend origins.
-    # Local dev default is permissive; in production set ALLOWED_ORIGINS to your
-    # deployed frontend, e.g. "https://filmdice.vercel.app".
-    allowed_origins: str = "*"
+    # Comma-separated list of frontend origins allowed to call this API.
+    # Defaults to the live site plus local dev. Set ALLOWED_ORIGINS="*" to allow
+    # any origin (e.g. testing from a phone on your LAN).
+    allowed_origins: str = (
+        "https://filmdice-bay.vercel.app,"
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000"
+    )
+    # Also allow Vercel preview deployments of this project.
+    allowed_origin_regex: str = r"^https://filmdice-[a-z0-9-]+-cameron-b\.vercel\.app$"
 
     @property
     def cors_origins(self) -> list[str]:
