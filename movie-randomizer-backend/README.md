@@ -97,6 +97,21 @@ Returns all interaction records. Add `?status=liked` to filter.
 ### `DELETE /interactions/{user_id}/{movie_id}`
 Removes a movie from history so it can be recommended again.
 
+### `POST /interactions/undo`
+Undoes a swipe: the movie goes back to "shown, not swiped" and today's anonymous counters are corrected. Body: `user_id`, `tmdb_movie_id`, `kind` (`like` | `skip` | `watched`), optional `context`.
+
+### `DELETE /users/{user_id}`
+Deletes all swipe history and the taste profile for that user ("Delete my data"). Users inactive for 365 days are also purged automatically by a daily background job.
+
+### `GET /stats`
+Public, anonymous usage and health numbers for the frontend's `/stats` page (cached for 60 s). Daily counters live in the `daily_metrics` table and hold no user IDs.
+
+### `POST /events`
+Anonymous engagement counters reported by the frontend: `trailer_play`, `watch_link`.
+
+### `GET /health`
+Health check (also used by the frontend to wait for a cold start).
+
 ### `GET /genres`
 Returns all TMDB genre IDs and names.
 
@@ -126,11 +141,29 @@ Scores are cached in the `user_preference_cache` table (one row per user) and in
 
 ```
 app/
-├── main.py          # All routes and endpoint logic
+├── main.py          # Routes, middleware, inactive-user cleanup job
+├── metrics.py       # Anonymous daily counters, health numbers, /stats
+├── ratelimit.py     # Per-visitor in-memory rate limits
 ├── schemas.py       # Pydantic request/response models
 ├── models.py        # SQLAlchemy ORM models (UserMovieInteraction, UserPreferenceCache)
 ├── services.py      # Preference scoring
 ├── tmdb_client.py   # TMDB API client (shared httpx client)
 ├── db.py            # Async DB session factory
 └── config.py        # Settings from .env
+```
+
+---
+
+## Security
+
+- CORS allows the live site, its Vercel previews and localhost by default (override with `ALLOWED_ORIGINS`).
+- Per-visitor rate limits: data deletion 10/hour, rolls 90/min, interactions 120/min, events 60/min, stats 30/min, 300/min overall. Over the limit returns 429 with `Retry-After`.
+
+## Testing
+
+48 pytest tests in `tests/` run against a real PostgreSQL database with TMDB replaced by a fake:
+
+```bash
+pip install -r requirements-dev.txt
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/filmdice_test python -m pytest
 ```

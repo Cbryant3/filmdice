@@ -4,7 +4,7 @@ Next.js frontend for FilmDice. Swipe right to like a movie, left to skip. Filter
 
 ## Tech Stack
 
-- **Next.js 15** — App Router, React 19
+- **Next.js 16** — App Router, React 19
 - **Tailwind CSS v4** — utility-first styling
 - **TypeScript**
 - **Auth.js v5** — Google OAuth, session syncing across devices
@@ -43,6 +43,7 @@ Swipeable card showing poster, title, release year, runtime, content rating, str
 Slide-out drawer with:
 - Sort order
 - Region (51 countries or Any)
+- Original language (20 languages or Any)
 - Genres (multi-select pills from the API)
 - Decade (multi-select, 1960s-2020s)
 - Rating range (dual-handle slider)
@@ -68,8 +69,30 @@ Dual-handle range slider built with pointer capture (no library). Used for the r
 ### `hooks/useSwipe.ts`
 Custom hook using `pointermove` / `pointerup` events and `setPointerCapture`. Returns `style` (transform), `likeIndicator` / `nopeIndicator` (opacity), `handlers`, and a `triggerSwipe` function for the action buttons.
 
-### `hooks/useUserId.ts`
-Returns the Auth.js session user ID when signed in, or a stable anonymous UUID from localStorage when not. Waits for the session to resolve before returning so the first API call always uses the correct ID.
+### `lib/userId.ts`
+Returns a stable anonymous UUID from localStorage for guests (the signed-in Google ID is used instead when available). Also exposes helpers used by Delete my data to read and clear the guest ID.
+
+### `components/MovieDetailModal.tsx`
+Full details view (overview, where to watch, trailer). Opens from the swipe card and from the Liked and Watched lists; a bottom sheet on phones, side-by-side with the poster on wider screens.
+
+### `components/StatsDashboard.tsx`
+The public `/stats` page: stat tiles, 30-day column charts with hover and a table view, the For You vs. random comparison, and server health.
+
+### `components/DeleteDataButton.tsx`
+Two-step "Delete my data" control on the Privacy page.
+
+### Info pages
+`app/faq`, `app/privacy` and `app/about` share `components/InfoPage.tsx` and `components/InfoFooter.tsx` (contact card and credits). Contact details live in `lib/site.ts`; resume content in `lib/resume.ts`.
+
+## Testing
+
+Browser tests live in `e2e/` (Playwright) and run every test at phone and desktop size against a production build with the backend mocked:
+
+```bash
+npm run typecheck && npm run lint
+npx playwright install chromium
+npm run test:e2e
+```
 
 ---
 
